@@ -1,0 +1,248 @@
+.football-field {
+  width: min(400px, 60vh);
+  height: min(90vh, 600px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background-color: #2e7d32; /* Dark green for the field */
+  border: 2px solid white;
+  position: relative;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #1a1a1a;
+}
+
+.App {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.end-zone {
+  height: 10%;
+  background-color: #1b5e20; /* Darker green for end zones */
+  border-bottom: 2px solid white;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.team-name {
+  position: absolute;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  z-index: 1;
+  -webkit-text-stroke: 2px white;
+  text-stroke: 2px white;
+}
+
+.team-name.lancers {
+  color: #0066cc; /* Blue */
+}
+
+.team-name.wildcats {
+  color: #cc0000; /* Red */
+}
+
+.end-zone.south {
+  border-top: 2px solid white;
+  border-bottom: none;
+}
+
+.main-field {
+  height: 80%;
+  position: relative;
+  overflow: hidden;
+}
+
+.field-section {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.field-section.fifty .yard-line {
+  height: 3px;
+}
+
+.yard-line {
+  width: 100%;
+  height: 2px;
+  background-color: white;
+  position: absolute;
+}
+
+.yard-number {
+  position: absolute;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  top: -25px;
+}
+
+.yard-number.left {
+  left: 25px;
+  transform: rotate(-90deg);
+  transform-origin: bottom left;
+}
+
+.yard-number.right {
+  right: 25px;
+  transform: rotate(90deg);
+  transform-origin: bottom right;
+}
+
+.hash-marks {
+  width: 100%;
+  position: absolute;
+  top: -5px;
+}
+
+.hash {
+  position: absolute;
+  width: 15px;
+  height: 2px;
+  background-color: white;
+}
+
+.hash.left {
+  left: 25%;
+}
+
+.hash.right {
+  right: 25%;
+}
+
+.sideline {
+  position: absolute;
+  width: 2px;
+  height: 100%;
+  background-color: white;
+  top: 0;
+}
+
+.sideline.left {
+  left: 0;
+}
+
+.sideline.right {
+  right: 0;
+}
+
+.goal-post {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 20px;
+  border: 4px solid #FFD700; /* Changed to yellow */
+  border-bottom: none;
+}
+
+.goal-post.north {
+  bottom: 5px;
+}
+
+.goal-post.south {
+  top: 5px;
+}
+
+.goal-post::before,
+.goal-post::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  width: 4px;
+  height: 20px;
+  background-color: #FFD700; /* Changed to yellow */
+}
+
+.goal-post::before {
+  left: 0;
+}
+
+.goal-post::after {
+  right: 0;
+}
+
+/* Add some texture to the field */
+.football-field::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 20px,
+    rgba(255, 255, 255, 0.05) 20px,
+    rgba(255, 255, 255, 0.05) 40px
+  );
+  pointer-events: none;
+}
+
+.pylon {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #FF6B00; /* Brighter neon orange */
+  box-shadow: 0 0 5px #FF6B00; /* Adding glow effect for neon look */
+  bottom: -4px;
+  border-radius: 2px;
+  z-index: 2;
+}
+
+.pylon.left {
+  left: 0;
+}
+
+.pylon.right {
+  right: 0;
+}
+
+.end-zone.south .pylon {
+  bottom: auto;
+  top: -4px;
+}
+
+.football-container {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.football {
+  font-size: 12px;
+  filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.3));
+}
+
+.power-meter {
+  position: absolute;
+  width: 2px;
+  background-color: cyan;
+  box-shadow: 0 0 4px cyan;
+  top: -2px; /* Position it just above the football */
+  transition: height 0.05s linear;
+} 
