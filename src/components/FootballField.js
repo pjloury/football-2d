@@ -2,12 +2,22 @@ import React, { useState, useEffect } from 'react';
 import './FootballField.css';
 
 const FootballField = () => {
-  const [rotation, setRotation] = useState(90);
+  const [rotation, setRotation] = useState(0);
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [powerMeter, setPowerMeter] = useState(0);
-  const ROTATION_SPEED = 3; // Degrees per frame, reduced from 7.5
-  const MAX_POWER = 50; // Maximum length of power meter in pixels
-  const POWER_GROWTH_SPEED = 0.8;
+  const [ballPosition, setBallPosition] = useState({ x: 50, y: 80 });
+  const [ballVelocity, setBallVelocity] = useState({ x: 0, y: 0 });
+  const [isThrown, setIsThrown] = useState(false);
+  const [restTimer, setRestTimer] = useState(0);
+  const [targetDistance, setTargetDistance] = useState(0);
+  const [initialPosition, setInitialPosition] = useState({ x: 50, y: 80 });
+  const [throwProgress, setThrowProgress] = useState(0);
+  
+  const ROTATION_SPEED = 3;
+  const MAX_POWER = 100; // Max power value
+  const POWER_GROWTH_SPEED = 1.5; // Adjusted for 1.5 seconds to max (100 / 1.5 seconds / 60 frames)
+  const THROW_DURATION = 20; // Reduced from 50 to 20 frames for faster throw
+  const REST_DURATION = 60; // ~1 second at 60fps
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -22,6 +32,20 @@ const FootballField = () => {
 
     const handleKeyUp = (e) => {
       if (e.key === ' ') {
+        if (activeKeys.has('space') && !isThrown) {
+          const angle = rotation * (Math.PI / 180);
+          const normalizedPower = powerMeter / MAX_POWER;
+          // First 70% of power = 0-45 yards, remaining 30% = 45-90 yards
+          const distance = normalizedPower <= 0.7 
+            ? (normalizedPower * 1.43) * 45 // 0-45 yards
+            : 45 + ((normalizedPower - 0.7) * 1.67) * 45; // 45-90 yards
+          
+          setIsThrown(true);
+          setThrowProgress(0);
+          setInitialPosition({ ...ballPosition });
+          setTargetDistance(distance);
+        }
+        
         setActiveKeys(prev => {
           const newKeys = new Set(prev);
           newKeys.delete('space');
@@ -41,10 +65,10 @@ const FootballField = () => {
     let animationFrameId;
 
     const updateGame = (currentTime) => {
-      const deltaTime = (currentTime - lastTime) / 16.67; // Normalize to 60fps
+      const deltaTime = (currentTime - lastTime) / 16.67;
       lastTime = currentTime;
 
-      // Update rotation based on the most recently pressed arrow key
+      // Update rotation
       if (activeKeys.has('ArrowLeft') && !activeKeys.has('ArrowRight')) {
         setRotation(prev => prev - ROTATION_SPEED * deltaTime);
       } else if (activeKeys.has('ArrowRight') && !activeKeys.has('ArrowLeft')) {
@@ -56,10 +80,45 @@ const FootballField = () => {
         setPowerMeter(prev => Math.min(prev + POWER_GROWTH_SPEED * deltaTime, MAX_POWER));
       }
 
+      // Update ball movement when thrown
+      if (isThrown) {
+        if (throwProgress >= THROW_DURATION) {
+          // Ball has reached destination
+          setRestTimer(prev => prev + 1);
+          if (restTimer >= REST_DURATION) {
+            setIsThrown(false);
+            setBallPosition({ x: 50, y: 80 });
+            setRestTimer(0);
+            setThrowProgress(0);
+          }
+        } else {
+          // Update throw progress
+          setThrowProgress(prev => prev + deltaTime);
+          const progress = Math.min(throwProgress / THROW_DURATION, 1);
+          const angle = rotation * (Math.PI / 180);
+          
+          // Calculate new position based on progress
+          const distanceProgress = targetDistance * (progress / 100); // Convert yards to percentage of field
+          setBallPosition({
+            x: initialPosition.x + Math.sin(angle) * distanceProgress * 100,
+            y: initialPosition.y - Math.cos(angle) * distanceProgress * 100
+          });
+        }
+
+        // Reset if out of bounds
+        if (ballPosition.y > 100 || ballPosition.y < 0 || 
+            ballPosition.x > 100 || ballPosition.x < 0) {
+          setIsThrown(false);
+          setBallPosition({ x: 50, y: 80 });
+          setRestTimer(0);
+          setThrowProgress(0);
+        }
+      }
+
       animationFrameId = requestAnimationFrame(updateGame);
     };
 
-    if (activeKeys.size > 0) {
+    if (activeKeys.size > 0 || isThrown) {
       lastTime = performance.now();
       animationFrameId = requestAnimationFrame(updateGame);
     }
@@ -74,7 +133,7 @@ const FootballField = () => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [activeKeys]);
+  }, [activeKeys, isThrown, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition]);
 
   return (
     <div className="football-field">
@@ -88,12 +147,12 @@ const FootballField = () => {
         {/* Football and Power Meter */}
         <div className="football-container" style={{ 
           transform: `translate(-50%, -50%) rotate(${rotation}deg)`, 
-          top: '80%', 
-          left: '50%', 
+          top: `${ballPosition.y}%`, 
+          left: `${ballPosition.x}%`, 
           position: 'absolute' 
         }}>
           <div className="football">🏈</div>
-          <div className="power-meter" style={{ height: `${powerMeter}px` }}></div>
+          {!isThrown && <div className="power-meter" style={{ height: `${powerMeter}px` }}></div>}
         </div>
         
         {/* Yard lines with numbers and hash marks */}
