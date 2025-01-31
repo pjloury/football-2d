@@ -18,6 +18,7 @@ const FootballField = () => {
   const POWER_GROWTH_SPEED = 1.5; // Adjusted for 1.5 seconds to max (100 / 1.5 seconds / 60 frames)
   const THROW_DURATION = 20; // Reduced from 50 to 20 frames for faster throw
   const REST_DURATION = 60; // ~1 second at 60fps
+  const MOVEMENT_SPEED = 0.3; // QB movement speed
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -26,7 +27,10 @@ const FootballField = () => {
         e.preventDefault();
         setActiveKeys(prev => new Set([...prev, 'space']));
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
         setActiveKeys(prev => new Set([...prev, e.key]));
+      } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+        setActiveKeys(prev => new Set([...prev, e.key.toLowerCase()]));
       }
     };
 
@@ -35,10 +39,10 @@ const FootballField = () => {
         if (activeKeys.has('space') && !isThrown) {
           const angle = rotation * (Math.PI / 180);
           const normalizedPower = powerMeter / MAX_POWER;
-          // First 70% of power = 0-45 yards, remaining 30% = 45-90 yards
+          // First 70% of power = 0-40 yards, remaining 30% = 40-65 yards
           const distance = normalizedPower <= 0.7 
-            ? (normalizedPower * 1.43) * 45 // 0-45 yards
-            : 45 + ((normalizedPower - 0.7) * 1.67) * 45; // 45-90 yards
+            ? (normalizedPower * 1.43) * 40 // 0-40 yards
+            : 60 + ((normalizedPower - 0.7) * 1.67) * 25; // 40-65 yards
           
           setIsThrown(true);
           setThrowProgress(0);
@@ -55,7 +59,13 @@ const FootballField = () => {
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         setActiveKeys(prev => {
           const newKeys = new Set(prev);
-          newKeys.delete(e.key);
+          newKeys.delete(e.key);  // Don't lowercase arrow keys
+          return newKeys;
+        });
+      } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+        setActiveKeys(prev => {
+          const newKeys = new Set(prev);
+          newKeys.delete(e.key.toLowerCase());
           return newKeys;
         });
       }
@@ -73,6 +83,18 @@ const FootballField = () => {
         setRotation(prev => prev - ROTATION_SPEED * deltaTime);
       } else if (activeKeys.has('ArrowRight') && !activeKeys.has('ArrowLeft')) {
         setRotation(prev => prev + ROTATION_SPEED * deltaTime);
+      }
+
+      // Update QB position if not thrown
+      if (!isThrown) {
+        setBallPosition(prev => {
+          const newPos = { ...prev };
+          if (activeKeys.has('w')) newPos.y = Math.max(10, prev.y - MOVEMENT_SPEED * deltaTime);
+          if (activeKeys.has('s')) newPos.y = Math.min(90, prev.y + MOVEMENT_SPEED * deltaTime);
+          if (activeKeys.has('a')) newPos.x = Math.max(5, prev.x - MOVEMENT_SPEED * deltaTime);
+          if (activeKeys.has('d')) newPos.x = Math.min(95, prev.x + MOVEMENT_SPEED * deltaTime);
+          return newPos;
+        });
       }
 
       // Update power meter
@@ -152,7 +174,11 @@ const FootballField = () => {
           position: 'absolute' 
         }}>
           <div className="football">🏈</div>
-          {!isThrown && <div className="power-meter" style={{ height: `${powerMeter}px` }}></div>}
+          {!isThrown && (
+            <div className="power-meter" style={{ 
+              height: `${Math.max(5, powerMeter)}px`
+            }}></div>
+          )}
         </div>
         
         {/* Yard lines with numbers and hash marks */}
