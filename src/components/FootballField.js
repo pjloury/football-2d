@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import './FootballField.css';
 
 const FootballField = () => {
-  const [rotation, setRotation] = useState(160);
+  const [rotation, setRotation] = useState(90);
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [powerMeter, setPowerMeter] = useState(0);
   const ROTATION_SPEED = 3; // Degrees per frame, reduced from 7.5
   const MAX_POWER = 50; // Maximum length of power meter in pixels
+  const POWER_GROWTH_SPEED = 0.8;
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -52,7 +53,7 @@ const FootballField = () => {
 
       // Update power meter
       if (activeKeys.has('space')) {
-        setPowerMeter(prev => Math.min(prev + 2 * deltaTime, MAX_POWER));
+        setPowerMeter(prev => Math.min(prev + POWER_GROWTH_SPEED * deltaTime, MAX_POWER));
       }
 
       animationFrameId = requestAnimationFrame(updateGame);
@@ -85,7 +86,12 @@ const FootballField = () => {
       </div>
       <div className="main-field">
         {/* Football and Power Meter */}
-        <div className="football-container" style={{ transform: `translate(-50%, -50%) rotate(${rotation}deg)`, top: '80%', left: '50%', position: 'absolute' }}>
+        <div className="football-container" style={{ 
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`, 
+          top: '80%', 
+          left: '50%', 
+          position: 'absolute' 
+        }}>
           <div className="football">🏈</div>
           <div className="power-meter" style={{ height: `${powerMeter}px` }}></div>
         </div>

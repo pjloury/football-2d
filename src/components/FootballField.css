@@ -158,11 +158,11 @@ body {
 }
 
 .goal-post.north {
-  bottom: 5px;
+  top: 0%;
 }
 
 .goal-post.south {
-  top: 5px;
+  bottom:10%;
 }
 
 .goal-post::before,
@@ -229,13 +229,15 @@ body {
   position: absolute;
   z-index: 3;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
+  transform-origin: center center;
 }
 
 .football {
   font-size: 12px;
   filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.3));
+  transform: rotate(-90deg); /* Align football with vertical axis */
 }
 
 .power-meter {
@@ -243,6 +245,8 @@ body {
   width: 2px;
   background-color: cyan;
   box-shadow: 0 0 4px cyan;
-  top: -2px; /* Position it just above the football */
-  transition: height 0.05s linear;
+  bottom: 50%;
+  left: 50%;
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: bottom center;
 } 
