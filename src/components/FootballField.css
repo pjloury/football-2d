@@ -40,6 +40,8 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .team-name {
@@ -70,6 +72,7 @@ body {
   height: 80%;
   position: relative;
   overflow: hidden;
+  z-index: 1;
 }
 
 .field-section {
@@ -267,4 +270,53 @@ body {
   border-right: 4px solid transparent;
   border-bottom: 6px solid cyan;
   filter: drop-shadow(0 0 2px cyan);
+}
+
+.start-message {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Remove the blink animation and its keyframes */
+
+.touchdown-message {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: yellow;
+  font-family: 'Courier New', monospace;
+  font-size: 48px;
+  font-weight: bold;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px #FFD700;
+  animation: touchdown-flash 0.5s infinite;
+  z-index: 10;
+}
+
+@keyframes touchdown-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.receiver {
+  position: absolute;
+  z-index: 5;
+  min-top: 0;  /* Prevent going above top of field */
+  pointer-events: none;
+}
+
+.receiver img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
 } 

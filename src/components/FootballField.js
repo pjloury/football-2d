@@ -5,28 +5,112 @@ const FootballField = () => {
   const [rotation, setRotation] = useState(0);
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [powerMeter, setPowerMeter] = useState(0);
+  const [hasReachedMax, setHasReachedMax] = useState(false);
+  const [isAdjusting, setIsAdjusting] = useState(false);
   const [ballPosition, setBallPosition] = useState({ x: 50, y: 80 });
   const [ballVelocity, setBallVelocity] = useState({ x: 0, y: 0 });
   const [isThrown, setIsThrown] = useState(false);
+  const [isCaught, setIsCaught] = useState(false);
+  const [catchOffset, setCatchOffset] = useState({ x: 0, y: 0 });
   const [restTimer, setRestTimer] = useState(0);
   const [targetDistance, setTargetDistance] = useState(0);
   const [initialPosition, setInitialPosition] = useState({ x: 50, y: 80 });
   const [throwProgress, setThrowProgress] = useState(0);
+  const [throwDuration, setThrowDuration] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 80 });
+  const [isTouchdown, setIsTouchdown] = useState(false);
   
-  const ROTATION_SPEED = 3;
+  const ROTATION_SPEED = .8;
   const MAX_POWER = 100; // Max power value
   const POWER_GROWTH_SPEED = 1.5; // Adjusted for 1.5 seconds to max (100 / 1.5 seconds / 60 frames)
-  const THROW_DURATION = 20; // Reduced from 50 to 20 frames for faster throw
+  const BALL_SPEED = 2; // Units per frame (constant speed)
   const REST_DURATION = 60; // ~1 second at 60fps
-  const MOVEMENT_SPEED = 0.3; // QB movement speed
+  const MOVEMENT_SPEED = 0.15; // QB movement speed (halved for finer control)
+  const RECEIVER_SPEED = 10; // 5 yards per second
+
+  // Check if ball and receiver intersect
+  const checkCatch = (ballPos, receiverPos) => {
+    const BALL_SIZE = 8;
+    const HELMET_SIZE = 8;
+    const BASE_CATCH_MARGIN = 15; // Base margin for catching
+    const POWER_CATCH_MARGIN = 25; // Reduced from 40 to make high-power throws more likely to miss
+    
+    const dx = ballPos.x - receiverPos.x;
+    const dy = ballPos.y - receiverPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Calculate the distance from QB to receiver
+    const qbToReceiverDistance = Math.sqrt(
+      Math.pow(initialPosition.x - receiverPosition.x, 2) +
+      Math.pow(initialPosition.y - receiverPosition.y, 2)
+    );
+
+    // Convert field percentage to yards (100% = 100 yards)
+    const receiverDistanceYards = qbToReceiverDistance;
+    
+    // Calculate catch margin based on throw power with more aggressive exponential scaling
+    const throwPowerRatio = targetDistance / 65; // 65 is max throw distance
+    const powerScaling = Math.pow(throwPowerRatio, 0.9); // More aggressive power scaling (was 0.7)
+    const dynamicCatchMargin = BASE_CATCH_MARGIN + (powerScaling * POWER_CATCH_MARGIN);
+    
+    // If throw is too powerful (beyond receiver + dynamic margin), no catch
+    if (targetDistance > receiverDistanceYards + dynamicCatchMargin) {
+      return { caught: false };
+    }
+    
+    if (distance < (BALL_SIZE + HELMET_SIZE) / 4) {
+      return {
+        caught: true,
+        offset: {
+          x: ballPos.x - receiverPos.x,
+          y: ballPos.y - receiverPos.y
+        }
+      };
+    }
+    return { caught: false };
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
-      if (e.key === ' ') {
+      if (e.key === 'Enter') {
+        if (!gameStarted) {
+          setGameStarted(true);
+        } else {
+          // Reset game state
+          setGameStarted(false);
+          setBallPosition({ x: 50, y: 80 });
+          setReceiverPosition({ x: 75, y: 80 });
+          setRotation(0);
+          setPowerMeter(0);
+          setHasReachedMax(false);
+          setIsAdjusting(false);
+          setIsThrown(false);
+          setIsCaught(false);
+          setCatchOffset({ x: 0, y: 0 });
+          setRestTimer(0);
+          setThrowProgress(0);
+          setTargetDistance(0);
+          setInitialPosition({ x: 50, y: 80 });
+          setThrowDuration(0);
+          setIsTouchdown(false);
+          setActiveKeys(new Set());
+        }
+      } else if (e.key === ' ') {
         e.preventDefault();
         setActiveKeys(prev => new Set([...prev, 'space']));
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      } else if (['ArrowUp', 'ArrowDown'].includes(e.key) && activeKeys.has('space') && !isThrown) {
+        e.preventDefault();
+        setIsAdjusting(true);  // Start manual adjustments as soon as arrows are used
+        setPowerMeter(prev => {
+          if (e.key === 'ArrowUp') {
+            return Math.min(prev + 10, MAX_POWER);
+          } else {
+            return Math.max(prev - 10, 0);
+          }
+        });
+      } else if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         setActiveKeys(prev => new Set([...prev, e.key]));
       } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
@@ -48,6 +132,10 @@ const FootballField = () => {
           setThrowProgress(0);
           setInitialPosition({ ...ballPosition });
           setTargetDistance(distance);
+          setHasReachedMax(false);
+          setIsAdjusting(false);
+          // Calculate throw duration based on distance and constant speed
+          setThrowDuration(distance / BALL_SPEED);
         }
         
         setActiveKeys(prev => {
@@ -78,6 +166,14 @@ const FootballField = () => {
       const deltaTime = (currentTime - lastTime) / 16.67;
       lastTime = currentTime;
 
+      // Update receiver position if game started
+      if (gameStarted && receiverPosition.y > -10) {  // Run all the way to back of end zone
+        setReceiverPosition(prev => ({
+          ...prev,
+          y: Math.max(-10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)  // Stop at y = -10 (back of end zone)
+        }));
+      }
+
       // Update rotation
       if (activeKeys.has('ArrowLeft') && !activeKeys.has('ArrowRight')) {
         setRotation(prev => prev - ROTATION_SPEED * deltaTime);
@@ -97,40 +193,71 @@ const FootballField = () => {
         });
       }
 
-      // Update power meter
-      if (activeKeys.has('space')) {
-        setPowerMeter(prev => Math.min(prev + POWER_GROWTH_SPEED * deltaTime, MAX_POWER));
+      // Update power meter - only auto-grow if not manually adjusting
+      if (activeKeys.has('space') && !isAdjusting) {
+        setPowerMeter(prev => {
+          const newPower = Math.min(prev + POWER_GROWTH_SPEED * deltaTime, MAX_POWER);
+          if (newPower === MAX_POWER && !hasReachedMax) {
+            setHasReachedMax(true);
+          }
+          return newPower;
+        });
       }
 
-      // Update ball movement when thrown
-      if (isThrown) {
-        if (throwProgress >= THROW_DURATION) {
-          // Ball has reached destination
+      // If ball is caught, move it with the receiver maintaining offset
+      if (isCaught) {
+        const newBallPosition = {
+          x: receiverPosition.x + catchOffset.x,
+          y: receiverPosition.y + catchOffset.y
+        };
+        setBallPosition(newBallPosition);
+        
+        // Check for touchdown when the ball's center crosses the goal line
+        if (newBallPosition.y <= 0 && !isTouchdown) {  // Only set touchdown once when crossing goal line
+          setIsTouchdown(true);
+        }
+      } else if (isThrown) {
+        if (throwProgress >= throwDuration) {
           setRestTimer(prev => prev + 1);
           if (restTimer >= REST_DURATION) {
             setIsThrown(false);
+            setIsCaught(false);
+            setCatchOffset({ x: 0, y: 0 });
             setBallPosition({ x: 50, y: 80 });
             setRestTimer(0);
             setThrowProgress(0);
           }
         } else {
-          // Update throw progress
           setThrowProgress(prev => prev + deltaTime);
-          const progress = Math.min(throwProgress / THROW_DURATION, 1);
+          const progress = Math.min(throwProgress / throwDuration, 1);
           const angle = rotation * (Math.PI / 180);
           
-          // Calculate new position based on progress
-          const distanceProgress = targetDistance * (progress / 100); // Convert yards to percentage of field
-          setBallPosition({
-            x: initialPosition.x + Math.sin(angle) * distanceProgress * 100,
-            y: initialPosition.y - Math.cos(angle) * distanceProgress * 100
-          });
+          const distanceProgress = targetDistance * progress;
+          const newBallPosition = {
+            x: initialPosition.x + Math.sin(angle) * distanceProgress,
+            y: initialPosition.y - Math.cos(angle) * distanceProgress
+          };
+          
+          // Check for catch before updating ball position
+          const catchResult = checkCatch(newBallPosition, receiverPosition);
+          if (!isCaught && catchResult.caught) {
+            setIsCaught(true);
+            setCatchOffset(catchResult.offset);
+            setBallPosition({
+              x: receiverPosition.x + catchResult.offset.x,
+              y: receiverPosition.y + catchResult.offset.y
+            });
+          } else if (!isCaught) {
+            setBallPosition(newBallPosition);
+          }
         }
 
         // Reset if out of bounds
         if (ballPosition.y > 100 || ballPosition.y < 0 || 
             ballPosition.x > 100 || ballPosition.x < 0) {
           setIsThrown(false);
+          setIsCaught(false);
+          setCatchOffset({ x: 0, y: 0 });
           setBallPosition({ x: 50, y: 80 });
           setRestTimer(0);
           setThrowProgress(0);
@@ -140,7 +267,7 @@ const FootballField = () => {
       animationFrameId = requestAnimationFrame(updateGame);
     };
 
-    if (activeKeys.size > 0 || isThrown) {
+    if (activeKeys.size > 0 || isThrown || gameStarted) {
       lastTime = performance.now();
       animationFrameId = requestAnimationFrame(updateGame);
     }
@@ -155,10 +282,18 @@ const FootballField = () => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [activeKeys, isThrown, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition]);
+  }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown]);
 
   return (
     <div className="football-field">
+      <div className="start-message">
+        {gameStarted ? 'Press Return to Reset' : 'Press Return to Start'}
+      </div>
+      {isTouchdown && (
+        <div className="touchdown-message">
+          TOUCHDOWN!
+        </div>
+      )}
       <div className="end-zone north">
         <div className="team-name lancers">LANCERS</div>
         <div className="goal-post north"></div>
@@ -168,19 +303,39 @@ const FootballField = () => {
       <div className="main-field">
         {/* Football and Power Meter */}
         <div className="football-container" style={{ 
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`, 
-          top: `${ballPosition.y}%`, 
-          left: `${ballPosition.x}%`, 
-          position: 'absolute' 
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          top: `${ballPosition.y}%`,
+          left: `${ballPosition.x}%`,
+          position: 'absolute'
         }}>
           <div className="football">🏈</div>
           {!isThrown && (
             <div className="power-meter" style={{ 
-              height: `${Math.max(5, powerMeter)}px`
+              height: `${Math.max(5, powerMeter * 2)}px`
             }}></div>
           )}
         </div>
-        
+
+        {/* Wide Receiver */}
+        <div className="receiver" style={{
+          position: 'absolute',
+          top: `${receiverPosition.y}%`,
+          left: `${receiverPosition.x}%`,
+          transform: 'translate(-50%, -50%)',
+          width: '24px',
+          height: '24px'
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/football-helmet.png`} 
+            alt="receiver"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain'
+            }}
+          />
+        </div>
+
         {/* Yard lines with numbers and hash marks */}
         {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((number, index) => (
           <div key={index} className={`field-section ${number === 50 ? 'fifty' : ''}`} style={{ top: `${(index + 1) * 10}%` }}>
@@ -193,7 +348,7 @@ const FootballField = () => {
             </div>
           </div>
         ))}
-        
+
         {/* Sidelines */}
         <div className="sideline left"></div>
         <div className="sideline right"></div>
@@ -208,4 +363,4 @@ const FootballField = () => {
   );
 };
 
-export default FootballField; 
+export default FootballField;
