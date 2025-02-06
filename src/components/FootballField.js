@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './FootballField.css';
 
 const FootballField = () => {
+  const [isMobile, setIsMobile] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [powerMeter, setPowerMeter] = useState(0);
@@ -20,57 +21,43 @@ const FootballField = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 80 });
   const [isTouchdown, setIsTouchdown] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   
-  const ROTATION_SPEED = .8;
+  // Mobile detection effect
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(isMobileDevice);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // Instructions escape key handler
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && showInstructions) {
+        setShowInstructions(false);
+      }
+    };
+
+    if (showInstructions) {
+      window.addEventListener('keydown', handleEscape);
+      return () => window.removeEventListener('keydown', handleEscape);
+    }
+  }, [showInstructions]);
+  
+  const ROTATION_SPEED = 1.2;
   const MAX_POWER = 100; // Max power value
   const POWER_GROWTH_SPEED = 1.5; // Adjusted for 1.5 seconds to max (100 / 1.5 seconds / 60 frames)
-  const BALL_SPEED = 2; // Units per frame (constant speed)
+  const BALL_SPEED = 1; // Reduced from 2 to make throws slower and require more anticipation
   const REST_DURATION = 60; // ~1 second at 60fps
   const MOVEMENT_SPEED = 0.15; // QB movement speed (halved for finer control)
   const RECEIVER_SPEED = 10; // 5 yards per second
 
-  // Check if ball and receiver intersect
-  const checkCatch = (ballPos, receiverPos) => {
-    const BALL_SIZE = 8;
-    const HELMET_SIZE = 8;
-    const BASE_CATCH_MARGIN = 15; // Base margin for catching
-    const POWER_CATCH_MARGIN = 25; // Reduced from 40 to make high-power throws more likely to miss
-    
-    const dx = ballPos.x - receiverPos.x;
-    const dy = ballPos.y - receiverPos.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Calculate the distance from QB to receiver
-    const qbToReceiverDistance = Math.sqrt(
-      Math.pow(initialPosition.x - receiverPosition.x, 2) +
-      Math.pow(initialPosition.y - receiverPosition.y, 2)
-    );
-
-    // Convert field percentage to yards (100% = 100 yards)
-    const receiverDistanceYards = qbToReceiverDistance;
-    
-    // Calculate catch margin based on throw power with more aggressive exponential scaling
-    const throwPowerRatio = targetDistance / 65; // 65 is max throw distance
-    const powerScaling = Math.pow(throwPowerRatio, 0.9); // More aggressive power scaling (was 0.7)
-    const dynamicCatchMargin = BASE_CATCH_MARGIN + (powerScaling * POWER_CATCH_MARGIN);
-    
-    // If throw is too powerful (beyond receiver + dynamic margin), no catch
-    if (targetDistance > receiverDistanceYards + dynamicCatchMargin) {
-      return { caught: false };
-    }
-    
-    if (distance < (BALL_SIZE + HELMET_SIZE) / 4) {
-      return {
-        caught: true,
-        offset: {
-          x: ballPos.x - receiverPos.x,
-          y: ballPos.y - receiverPos.y
-        }
-      };
-    }
-    return { caught: false };
-  };
-
+  // Game loop effect
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
@@ -167,10 +154,10 @@ const FootballField = () => {
       lastTime = currentTime;
 
       // Update receiver position if game started
-      if (gameStarted && receiverPosition.y > -10) {  // Run all the way to back of end zone
+      if (gameStarted && receiverPosition.y > 10) {
         setReceiverPosition(prev => ({
           ...prev,
-          y: Math.max(-10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)  // Stop at y = -10 (back of end zone)
+          y: Math.max(10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)
         }));
       }
 
@@ -213,7 +200,7 @@ const FootballField = () => {
         setBallPosition(newBallPosition);
         
         // Check for touchdown when the ball's center crosses the goal line
-        if (newBallPosition.y <= 0 && !isTouchdown) {  // Only set touchdown once when crossing goal line
+        if (newBallPosition.y <= 10 && !isTouchdown) {
           setIsTouchdown(true);
         }
       } else if (isThrown) {
@@ -284,8 +271,95 @@ const FootballField = () => {
     };
   }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown]);
 
+  if (isMobile) {
+    return (
+      <div className="mobile-message">
+        <h1>🏈</h1>
+        <h2>Desktop Only Game</h2>
+        <p>Sorry, this game requires a keyboard and can only be played on a computer.</p>
+        <p>Please visit this site on a desktop or laptop to play!</p>
+      </div>
+    );
+  }
+
+  // Check if ball and receiver intersect
+  const checkCatch = (ballPos, receiverPos) => {
+    const BALL_SIZE = 8;
+    const HELMET_SIZE = 8;
+    const BASE_CATCH_MARGIN = 15; // Base margin for catching
+    const POWER_CATCH_MARGIN = 25; // Reduced from 40 to make high-power throws more likely to miss
+    
+    const dx = ballPos.x - receiverPos.x;
+    const dy = ballPos.y - receiverPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Calculate the distance from QB to receiver
+    const qbToReceiverDistance = Math.sqrt(
+      Math.pow(initialPosition.x - receiverPosition.x, 2) +
+      Math.pow(initialPosition.y - receiverPosition.y, 2)
+    );
+
+    // Convert field percentage to yards (100% = 100 yards)
+    const receiverDistanceYards = qbToReceiverDistance;
+    
+    // Calculate catch margin based on throw power with more aggressive exponential scaling
+    const throwPowerRatio = targetDistance / 65; // 65 is max throw distance
+    const powerScaling = Math.pow(throwPowerRatio, 0.9); // More aggressive power scaling (was 0.7)
+    const dynamicCatchMargin = BASE_CATCH_MARGIN + (powerScaling * POWER_CATCH_MARGIN);
+    
+    // If throw is too powerful (beyond receiver + dynamic margin), no catch
+    if (targetDistance > receiverDistanceYards + dynamicCatchMargin) {
+      return { caught: false };
+    }
+    
+    if (distance < (BALL_SIZE + HELMET_SIZE) / 4) {
+      return {
+        caught: true,
+        offset: {
+          x: ballPos.x - receiverPos.x,
+          y: ballPos.y - receiverPos.y
+        }
+      };
+    }
+    return { caught: false };
+  };
+
   return (
     <div className="football-field">
+      <button 
+        className="instructions-button"
+        onClick={() => setShowInstructions(true)}
+      >
+        Instructions
+      </button>
+
+      {showInstructions && (
+        <div className="instructions-overlay" onClick={() => setShowInstructions(false)}>
+          <div className="instructions-content" onClick={e => e.stopPropagation()}>
+            <h2>How to Play</h2>
+            <div className="instruction-section">
+              <h3>Movement</h3>
+              <p>WASD Keys - Move QB</p>
+              <p>Left/Right Arrows - Rotate throw direction</p>
+            </div>
+            <div className="instruction-section">
+              <h3>Throwing</h3>
+              <p>Hold SPACE - Charge throw power</p>
+              <p>Up/Down Arrows - Fine-tune power while holding SPACE</p>
+              <p>Release SPACE - Throw the ball</p>
+            </div>
+            <div className="instruction-section">
+              <h3>Game Controls</h3>
+              <p>ENTER - Hike the ball / Reset</p>
+              <p>ESC - Close instructions</p>
+            </div>
+            <button className="close-button" onClick={() => setShowInstructions(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="start-message">
         {gameStarted ? 'Press Return to Reset' : 'Press Return to Start'}
       </div>

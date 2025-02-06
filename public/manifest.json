@@ -3,13 +3,13 @@
   "name": "Football 2D",
   "icons": [
     {
-      "src": "football-helmet.png",
+      "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>",
       "sizes": "64x64 32x32 24x24 16x16 192x192 512x512",
-      "type": "image/x-icon"
+      "type": "image/svg+xml"
     }
   ],
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "background_color": "#1a1a1a"
 }
