@@ -20,14 +20,37 @@ const FootballField = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 80 });
   const [isTouchdown, setIsTouchdown] = useState(false);
+  const [cornerbackPosition, setCornerbackPosition] = useState({ x: 75, y: 75 });
+  const [linebackerPosition, setLinebackerPosition] = useState({ x: 50, y: 60 });
+  const [quarterbackPosition, setQuarterbackPosition] = useState({ x: 50, y: 80 });
+  const [isSacked, setIsSacked] = useState(false);
+  const [showSacked, setShowSacked] = useState(false);
+  const [showPassComplete, setShowPassComplete] = useState(false);
+  const [showPassIncomplete, setShowPassIncomplete] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [currentDown, setCurrentDown] = useState(1);
+  const [newScrimmage, setNewScrimmage] = useState(80);
+  const [playDeadTimer, setPlayDeadTimer] = useState(0);
+  const [touchdownTimer, setTouchdownTimer] = useState(0);
+  const [incompleteTimer, setIncompleteTimer] = useState(0);
+  const [isTackled, setIsTackled] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   
-  const ROTATION_SPEED = .8;
-  const MAX_POWER = 100; // Max power value
-  const POWER_GROWTH_SPEED = 1.5; // Adjusted for 1.5 seconds to max (100 / 1.5 seconds / 60 frames)
-  const BALL_SPEED = 2; // Units per frame (constant speed)
-  const REST_DURATION = 60; // ~1 second at 60fps
-  const MOVEMENT_SPEED = 0.15; // QB movement speed (halved for finer control)
-  const RECEIVER_SPEED = 10; // 5 yards per second
+  const ROTATION_SPEED = 1;
+  const MAX_POWER = 100;
+  const POWER_GROWTH_SPEED = 1.7;
+  const BALL_SPEED = 1;
+  const REST_DURATION = 60;
+  const MOVEMENT_SPEED = 0.08;
+  const RECEIVER_SPEED = 20;
+  const PLAY_DEAD_DURATION = 60;
+  const TOUCHDOWN_DURATION = 300;
+  const INCOMPLETE_DURATION = 180;
+  const CORNERBACK_SPEED = 19;
+  const LINEBACKER_SPEED = 10;
+  const SACK_DISTANCE = 8;
+  const TACKLE_DISTANCE = 10;
 
   // Check if ball and receiver intersect
   const checkCatch = (ballPos, receiverPos) => {
@@ -119,6 +142,10 @@ const FootballField = () => {
     };
 
     const handleKeyUp = (e) => {
+      if (e.key === 'Escape') {
+        setShowInstructions(false);
+      }
+      
       if (e.key === ' ') {
         if (activeKeys.has('space') && !isThrown) {
           const angle = rotation * (Math.PI / 180);
@@ -167,11 +194,96 @@ const FootballField = () => {
       lastTime = currentTime;
 
       // Update receiver position if game started
-      if (gameStarted && receiverPosition.y > -10) {  // Run all the way to back of end zone
+      if (gameStarted && receiverPosition.y > -10 && !isTackled) {
         setReceiverPosition(prev => ({
           ...prev,
-          y: Math.max(-10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)  // Stop at y = -10 (back of end zone)
+          y: Math.max(-10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)
         }));
+
+        // Update cornerback to follow receiver with slight delay
+        setCornerbackPosition(prev => {
+          const targetX = receiverPosition.x - 3;
+          const dx = targetX - prev.x;
+          const newX = prev.x + dx * 0.1;
+          
+          return {
+            x: Math.max(5, Math.min(95, newX)),
+            y: Math.max(-10, prev.y - (CORNERBACK_SPEED * deltaTime) / 100)
+          };
+        });
+
+        // Check for tackle after catch
+        if (isCaught) {
+          const dx = cornerbackPosition.x - receiverPosition.x;
+          const dy = cornerbackPosition.y - receiverPosition.y;
+          const distanceToCornerback = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distanceToCornerback < TACKLE_DISTANCE) {
+            setIsTackled(true);
+            setShowPassComplete(true);
+            setNewScrimmage(receiverPosition.y);
+            setGameStarted(false);
+          }
+        }
+      }
+
+      // Add linebacker movement and sack detection
+      if (gameStarted && !isThrown && !isSacked && !isTackled) {
+        // Move linebacker towards QB
+        setLinebackerPosition(prev => {
+          const dx = ballPosition.x - prev.x;
+          const dy = ballPosition.y - prev.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < SACK_DISTANCE) {
+            setIsSacked(true);
+            setShowSacked(true);
+            setNewScrimmage(ballPosition.y);
+            setGameStarted(false);
+            return prev;
+          }
+
+          // Normalize direction and move
+          const speed = (LINEBACKER_SPEED * deltaTime) / 100;
+          return {
+            x: prev.x + (dx / distance) * speed,
+            y: prev.y + (dy / distance) * speed
+          };
+        });
+      }
+
+      // Handle play dead timer and reset
+      if (isTackled || isSacked || (isThrown && !isCaught && throwProgress >= throwDuration)) {
+        setPlayDeadTimer(prev => prev + 1);
+        if (playDeadTimer >= PLAY_DEAD_DURATION) {
+          // Reset positions after delay
+          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
+          setQuarterbackPosition({ x: 50, y: newScrimmage });
+          setReceiverPosition({ x: 75, y: newScrimmage });
+          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
+          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
+          setPlayDeadTimer(0);
+          setIsThrown(false);
+          setIsCaught(false);
+          setIsSacked(false);
+          setCatchOffset({ x: 0, y: 0 });
+          setRestTimer(0);
+          setThrowProgress(0);
+          setShowPassComplete(false);
+          setShowPassIncomplete(false);
+          setInitialPosition({ x: 50, y: newScrimmage }); // Center initial position
+          if (!isTouchdown) {
+            const nextDown = currentDown + 1;
+            if (nextDown > 4) {
+              setIsGameOver(true);
+              setGameStarted(false);
+            } else {
+              setCurrentDown(nextDown);
+            }
+          }
+          setIsTackled(false);
+          setGameStarted(false);
+        }
       }
 
       // Update rotation
@@ -284,16 +396,124 @@ const FootballField = () => {
     };
   }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown]);
 
+  const resetGame = () => {
+    setGameStarted(false);
+    setBallPosition({ x: 50, y: 80 });
+    setReceiverPosition({ x: 75, y: 80 });
+    setRotation(0);
+    setPowerMeter(0);
+    setHasReachedMax(false);
+    setIsAdjusting(false);
+    setIsThrown(false);
+    setIsCaught(false);
+    setCatchOffset({ x: 0, y: 0 });
+    setRestTimer(0);
+    setThrowProgress(0);
+    setTargetDistance(0);
+    setInitialPosition({ x: 50, y: 80 });
+    setThrowDuration(0);
+    setIsTouchdown(false);
+    setActiveKeys(new Set());
+    setIsGameOver(false);
+    setScore(0);
+    setCurrentDown(1);
+    setNewScrimmage(80);
+    setPlayDeadTimer(0);
+    setTouchdownTimer(0);
+    setIncompleteTimer(0);
+    setIsTackled(false);
+    setShowInstructions(false);
+  };
+
   return (
     <div className="football-field">
-      <div className="start-message">
-        {gameStarted ? 'Press Return to Reset' : 'Press Return to Start'}
+      <button 
+        className="instructions-button"
+        onClick={() => setShowInstructions(true)}
+      >
+        Instructions
+      </button>
+      
+      {showInstructions && (
+        <div className="instructions-modal">
+          <div className="instructions-content">
+            <h2>How to Play</h2>
+            <ul>
+              <li>Press RETURN to hike the ball</li>
+              <li>Use WASD keys to move the quarterback</li>
+              <li>Hold SPACE to start throw, release to throw</li>
+              <li>Use UP/DOWN arrows while holding SPACE to adjust power</li>
+              <li>Use LEFT/RIGHT arrows to aim throw direction</li>
+              <li>Score a touchdown in 4 downs to win!</li>
+              <li>Watch out for defenders!</li>
+            </ul>
+            <p className="dismiss-text">Press ESC to close</p>
+          </div>
+        </div>
+      )}
+
+      <div className="scoreboard">
+        <div className="stat">
+          <span className="label">Score:</span>
+          <span className="value">{score}</span>
+        </div>
+        <div className="stat">
+          <span className="label">Down:</span>
+          <span className="value">{currentDown}</span>
+        </div>
+        <div className="stat">
+          <span className="label">Ball On:</span>
+          <span className="value">
+            {100 - newScrimmage > 100 ? "End Zone" : Math.round(100 - newScrimmage)}
+          </span>
+        </div>
       </div>
+
+      <div className="start-message">
+        {isGameOver ? (
+          <button className="play-again-button" onClick={resetGame}>
+            Play Again?
+          </button>
+        ) : (
+          gameStarted ? 'Press Return to Reset' : 'Press Return to Hike Ball'
+        )}
+      </div>
+
       {isTouchdown && (
         <div className="touchdown-message">
           TOUCHDOWN!
         </div>
       )}
+
+      {showPassComplete && !isTouchdown && (
+        <div className="pass-complete-message">
+          PASS COMPLETE
+        </div>
+      )}
+
+      {showPassIncomplete && !isTouchdown && !isGameOver && (
+        <div className="pass-incomplete-message">
+          PASS INCOMPLETE
+        </div>
+      )}
+
+      {showSacked && !isTouchdown && !isGameOver && (
+        <div className="sacked-message">
+          SACKED
+        </div>
+      )}
+
+      {isGameOver && (
+        <div className="game-over-container">
+          <div className="game-over-message">
+            GAME OVER
+          </div>
+          <button className="play-again-button" onClick={resetGame}>
+            Play Again?
+          </button>
+        </div>
+      )}
+
       <div className="end-zone north">
         <div className="team-name lancers">LANCERS</div>
         <div className="goal-post north"></div>
@@ -316,6 +536,27 @@ const FootballField = () => {
           )}
         </div>
 
+        {/* Quarterback */}
+        <div className="quarterback" style={{
+          position: 'absolute',
+          top: `${quarterbackPosition.y}%`,
+          left: `${quarterbackPosition.x}%`,
+          transform: 'translate(-50%, -50%)',
+          width: '24px',
+          height: '24px',
+          zIndex: 10
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
+            alt="quarterback"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain'
+            }}
+          />
+        </div>
+
         {/* Wide Receiver */}
         <div className="receiver" style={{
           position: 'absolute',
@@ -326,8 +567,50 @@ const FootballField = () => {
           height: '24px'
         }}>
           <img 
-            src={`${process.env.PUBLIC_URL}/football-helmet.png`} 
+            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
             alt="receiver"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain'
+            }}
+          />
+        </div>
+
+        {/* Cornerback */}
+        <div className="cornerback" style={{
+          position: 'absolute',
+          top: `${cornerbackPosition.y}%`,
+          left: `${cornerbackPosition.x}%`,
+          transform: 'translate(-50%, -50%)',
+          width: '24px',
+          height: '24px',
+          zIndex: 10
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
+            alt="cornerback"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain'
+            }}
+          />
+        </div>
+
+        {/* Linebacker */}
+        <div className="linebacker" style={{
+          position: 'absolute',
+          top: `${linebackerPosition.y}%`,
+          left: `${linebackerPosition.x}%`,
+          transform: 'translate(-50%, -50%)',
+          width: '24px',
+          height: '24px',
+          zIndex: 10
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
+            alt="linebacker"
             style={{
               width: '100%',
               height: '100%',
