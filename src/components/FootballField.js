@@ -45,7 +45,7 @@ const FootballField = () => {
   const MOVEMENT_SPEED = 0.05;
   const RECEIVER_SPEED = 20;
   const PLAY_DEAD_DURATION = 60;
-  const TOUCHDOWN_DURATION = 300;
+  const TOUCHDOWN_DURATION = 300; // 5 seconds at 60fps
   const INCOMPLETE_DURATION = 180;
   const SACKED_MESSAGE_DURATION = 120; // 2 seconds at 60fps
   const CORNERBACK_SPEED = 19;
@@ -99,13 +99,48 @@ const FootballField = () => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
       if (e.key === 'Enter') {
-        if (!gameStarted) {
+        if (isTouchdown) {
+          // Reset everything after touchdown
+          setTouchdownTimer(0);
+          setIsTouchdown(false);
+          setGameStarted(false);
+          setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
+          setQuarterbackPosition({ x: 50, y: 80 });
+          setReceiverPosition({ x: 75, y: 80 });
+          setCornerbackPosition({ x: 75, y: 75 });
+          setLinebackerPosition({ x: 50, y: 60 });
+          setRotation(0);
+          setPowerMeter(0);
+          setHasReachedMax(false);
+          setIsAdjusting(false);
+          setIsThrown(false);
+          setIsCaught(false);
+          setIsSacked(false);
+          setCatchOffset({ x: 0, y: 0 });
+          setRestTimer(0);
+          setThrowProgress(0);
+          setTargetDistance(0);
+          setInitialPosition({ x: 50, y: 80 });
+          setThrowDuration(0);
+          setCurrentDown(1); // Reset to first down for new possession
+          setNewScrimmage(80); // Reset to 20 yard line
+          setIsTackled(false);
+          setShowPassComplete(false);
+          setShowPassIncomplete(false);
+          setShowSacked(false);
+          setPlayDeadTimer(0);
+          setIsGameOver(false);
+          setScore(prev => prev + 7); // Add 7 points for touchdown
+        } else if (!gameStarted) {
           setGameStarted(true);
         } else {
           // Reset game state
           setGameStarted(false);
-          setBallPosition({ x: 50, y: 80 });
-          setReceiverPosition({ x: 75, y: 80 });
+          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Ball 3 units above QB
+          setQuarterbackPosition({ x: 50, y: newScrimmage });
+          setReceiverPosition({ x: 75, y: newScrimmage });
+          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
+          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
           setRotation(0);
           setPowerMeter(0);
           setHasReachedMax(false);
@@ -116,7 +151,7 @@ const FootballField = () => {
           setRestTimer(0);
           setThrowProgress(0);
           setTargetDistance(0);
-          setInitialPosition({ x: 50, y: 80 });
+          setInitialPosition({ x: 50, y: newScrimmage });
           setThrowDuration(0);
           setIsTouchdown(false);
           setActiveKeys(new Set());
@@ -417,6 +452,44 @@ const FootballField = () => {
         }
       }
 
+      // Update touchdown timer and reset
+      if (isTouchdown) {
+        setTouchdownTimer(prev => prev + 1);
+        if (touchdownTimer >= TOUCHDOWN_DURATION) {
+          // Reset everything after touchdown celebration
+          setTouchdownTimer(0);
+          setIsTouchdown(false);
+          setGameStarted(false);
+          setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
+          setQuarterbackPosition({ x: 50, y: 80 });
+          setReceiverPosition({ x: 75, y: 80 });
+          setCornerbackPosition({ x: 75, y: 75 });
+          setLinebackerPosition({ x: 50, y: 60 });
+          setRotation(0);
+          setPowerMeter(0);
+          setHasReachedMax(false);
+          setIsAdjusting(false);
+          setIsThrown(false);
+          setIsCaught(false);
+          setIsSacked(false);
+          setCatchOffset({ x: 0, y: 0 });
+          setRestTimer(0);
+          setThrowProgress(0);
+          setTargetDistance(0);
+          setInitialPosition({ x: 50, y: 80 });
+          setThrowDuration(0);
+          setCurrentDown(1); // Reset to first down for new possession
+          setNewScrimmage(80); // Reset to 20 yard line
+          setIsTackled(false);
+          setShowPassComplete(false);
+          setShowPassIncomplete(false);
+          setShowSacked(false);
+          setPlayDeadTimer(0);
+          setIsGameOver(false);
+          setScore(prev => prev + 7); // Add 7 points for touchdown
+        }
+      }
+
       animationFrameId = requestAnimationFrame(updateGame);
     };
 
@@ -526,7 +599,7 @@ const FootballField = () => {
             Play Again?
           </button>
         ) : (
-          gameStarted ? 'Press Return to Reset' : 'Press Return to Hike Ball'
+          gameStarted ? 'Press Return to Reset' : (isTouchdown ? 'Press Return to Keep Playing' : 'Press Return to Hike Ball')
         )}
       </div>
 
