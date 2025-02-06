@@ -34,13 +34,13 @@ body {
 
 .end-zone {
   height: 10%;
-  background-color: rgba(27, 94, 32, 0.5); /* Darker green with 50% opacity */
+  background-color: #1b5e20; /* Darker green for end zones */
   border-bottom: 2px solid white;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1;
+  z-index: 0;
   pointer-events: none;
 }
 
@@ -50,7 +50,7 @@ body {
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
-  z-index: 2;
+  z-index: 1;
   -webkit-text-stroke: 2px white;
   text-stroke: 2px white;
 }
@@ -230,7 +230,7 @@ body {
 
 .football-container {
   position: absolute;
-  z-index: 10;
+  z-index: 3;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -309,7 +309,7 @@ body {
 
 .receiver {
   position: absolute;
-  z-index: 10;
+  z-index: 5;
   min-top: 0;  /* Prevent going above top of field */
   pointer-events: none;
 }
@@ -319,159 +319,4 @@ body {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
-}
-
-.scoreboard {
-  position: fixed;
-  left: 20px;
-  bottom: 20px;
-  background-color: rgba(0, 0, 0, 0.8);
-  border: 2px solid #FFD700;
-  padding: 15px;
-  border-radius: 5px;
-  z-index: 100;
-  font-family: 'Courier New', monospace;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 150px;
-}
-
-.scoreboard .stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.scoreboard .label {
-  color: #FFD700;
-  font-weight: bold;
-  font-size: 14px;
-  text-transform: uppercase;
-}
-
-.scoreboard .value {
-  font-size: 16px;
-  font-weight: bold;
-  color: white;
-}
-
-.pass-complete-message {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: #00ff00;
-  font-family: 'Courier New', monospace;
-  font-size: 36px;
-  font-weight: bold;
-  text-transform: uppercase;
-  text-shadow: 0 0 10px #00ff00;
-  animation: pass-complete-flash 0.5s infinite;
-  z-index: 10;
-}
-
-@keyframes pass-complete-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.pass-incomplete-message {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: #ff0000;
-  font-family: 'Courier New', monospace;
-  font-size: 36px;
-  font-weight: bold;
-  text-transform: uppercase;
-  text-shadow: 0 0 10px #ff0000;
-  animation: pass-incomplete-flash 0.5s infinite;
-  z-index: 10;
-}
-
-.game-over-message {
-  position: fixed;
-  left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
-  color: #ff0000;
-  font-family: 'Courier New', monospace;
-  font-size: 48px;
-  font-weight: bold;
-  text-transform: uppercase;
-  text-shadow: 0 0 10px #ff0000;
-  animation: game-over-flash 0.5s infinite;
-  z-index: 10;
-}
-
-@keyframes pass-incomplete-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes game-over-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.cornerback {
-  position: absolute;
-  z-index: 10;
-  min-top: 0;
-  pointer-events: none;
-}
-
-.game-over-container {
-  position: fixed;
-  left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 40px;
-  z-index: 10;
-}
-
-.play-again-button {
-  background: none;
-  border: 2px solid #FFD700;
-  color: #FFD700;
-  padding: 10px 20px;
-  font-family: 'Courier New', monospace;
-  font-size: 18px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-}
-
-.play-again-button:hover {
-  background-color: #FFD700;
-  color: #1a1a1a;
-  transform: translateY(-2px);
-  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-}
-
-.sacked-message {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: #ff6b00; /* Orange color for sacked message */
-  font-family: 'Courier New', monospace;
-  font-size: 36px;
-  font-weight: bold;
-  text-transform: uppercase;
-  text-shadow: 0 0 10px #ff6b00;
-  animation: sacked-flash 0.5s infinite;
-  z-index: 10;
-}
-
-@keyframes sacked-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
 } 
