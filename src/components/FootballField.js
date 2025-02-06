@@ -42,14 +42,15 @@ const FootballField = () => {
   const POWER_GROWTH_SPEED = 1.7;
   const BALL_SPEED = 1;
   const REST_DURATION = 60;
-  const MOVEMENT_SPEED = 0.08;
+  const MOVEMENT_SPEED = 0.05;
   const RECEIVER_SPEED = 20;
   const PLAY_DEAD_DURATION = 60;
   const TOUCHDOWN_DURATION = 300;
   const INCOMPLETE_DURATION = 180;
+  const SACKED_MESSAGE_DURATION = 120; // 2 seconds at 60fps
   const CORNERBACK_SPEED = 19;
-  const LINEBACKER_SPEED = 10;
-  const SACK_DISTANCE = 8;
+  const LINEBACKER_SPEED = 13;
+  const SACK_DISTANCE = 5;
   const TACKLE_DISTANCE = 10;
 
   // Check if ball and receiver intersect
@@ -238,8 +239,21 @@ const FootballField = () => {
           if (distance < SACK_DISTANCE) {
             setIsSacked(true);
             setShowSacked(true);
-            setNewScrimmage(ballPosition.y);
+            const newScrimmageLine = Math.min(100, ballPosition.y + 5); // Move back 5 yards
+            setNewScrimmage(newScrimmageLine);
             setGameStarted(false);
+            // Reset positions for next down
+            setBallPosition({ x: 50, y: newScrimmageLine - 3 }); // Ball 3 units above QB
+            setQuarterbackPosition({ x: 50, y: newScrimmageLine });
+            setReceiverPosition({ x: 75, y: newScrimmageLine });
+            setCornerbackPosition({ x: 75, y: newScrimmageLine - 5 });
+            setLinebackerPosition({ x: 50, y: newScrimmageLine - 20 });
+
+            // Start a timer to hide the sacked message
+            setTimeout(() => {
+              setShowSacked(false);
+            }, 2000); // 2 seconds
+
             return prev;
           }
 
@@ -293,16 +307,25 @@ const FootballField = () => {
         setRotation(prev => prev + ROTATION_SPEED * deltaTime);
       }
 
-      // Update QB position if not thrown
-      if (!isThrown) {
-        setBallPosition(prev => {
-          const newPos = { ...prev };
-          if (activeKeys.has('w')) newPos.y = Math.max(10, prev.y - MOVEMENT_SPEED * deltaTime);
-          if (activeKeys.has('s')) newPos.y = Math.min(90, prev.y + MOVEMENT_SPEED * deltaTime);
-          if (activeKeys.has('a')) newPos.x = Math.max(5, prev.x - MOVEMENT_SPEED * deltaTime);
-          if (activeKeys.has('d')) newPos.x = Math.min(95, prev.x + MOVEMENT_SPEED * deltaTime);
-          return newPos;
-        });
+      // Update QB and ball movement together in updateGame
+      if (!isThrown && gameStarted && !isTackled && !isSacked) {
+        const newPos = { ...ballPosition };
+        if (activeKeys.has('w')) newPos.y = Math.max(10, ballPosition.y - MOVEMENT_SPEED * deltaTime);
+        if (activeKeys.has('s')) newPos.y = Math.min(90, ballPosition.y + MOVEMENT_SPEED * deltaTime);
+        if (activeKeys.has('a')) newPos.x = Math.max(5, ballPosition.x - MOVEMENT_SPEED * deltaTime);
+        if (activeKeys.has('d')) newPos.x = Math.min(95, ballPosition.x + MOVEMENT_SPEED * deltaTime);
+        
+        // Only update positions if they've changed
+        if (newPos.x !== ballPosition.x || newPos.y !== ballPosition.y) {
+          setBallPosition(newPos);
+          setQuarterbackPosition({ x: newPos.x, y: newPos.y + 3 }); // QB 3 units below ball
+        }
+      }
+
+      // When ball is thrown, QB stays in place
+      if (isThrown) {
+        // Keep QB in last position before throw
+        setQuarterbackPosition(prev => prev);
       }
 
       // Update power meter - only auto-grow if not manually adjusting
@@ -335,7 +358,8 @@ const FootballField = () => {
             setIsThrown(false);
             setIsCaught(false);
             setCatchOffset({ x: 0, y: 0 });
-            setBallPosition({ x: 50, y: 80 });
+            setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
+            setQuarterbackPosition({ x: 50, y: newScrimmage });
             setRestTimer(0);
             setThrowProgress(0);
           }
@@ -365,14 +389,31 @@ const FootballField = () => {
         }
 
         // Reset if out of bounds
-        if (ballPosition.y > 100 || ballPosition.y < 0 || 
+        if (ballPosition.y > 100 || ballPosition.y < -10 || 
             ballPosition.x > 100 || ballPosition.x < 0) {
           setIsThrown(false);
           setIsCaught(false);
           setCatchOffset({ x: 0, y: 0 });
-          setBallPosition({ x: 50, y: 80 });
+          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Reset to current scrimmage line
+          setQuarterbackPosition({ x: 50, y: newScrimmage });
+          setReceiverPosition({ x: 75, y: newScrimmage });
+          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
+          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
           setRestTimer(0);
           setThrowProgress(0);
+          setShowPassIncomplete(true);
+          setGameStarted(false);
+          
+          // Start a timer to hide the incomplete message
+          setTimeout(() => {
+            setShowPassIncomplete(false);
+          }, 2000);
+
+          if (currentDown === 4) {
+            setIsGameOver(true);
+          } else {
+            setCurrentDown(prev => prev + 1);
+          }
         }
       }
 
@@ -398,8 +439,14 @@ const FootballField = () => {
 
   const resetGame = () => {
     setGameStarted(false);
-    setBallPosition({ x: 50, y: 80 });
+    // Reset ball and QB to scrimmage line
+    setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
+    setQuarterbackPosition({ x: 50, y: 80 });
+    // Reset receiver and defenders relative to scrimmage line
     setReceiverPosition({ x: 75, y: 80 });
+    setCornerbackPosition({ x: 75, y: 75 });
+    setLinebackerPosition({ x: 50, y: 60 });
+    // Reset all game state
     setRotation(0);
     setPowerMeter(0);
     setHasReachedMax(false);
@@ -414,10 +461,14 @@ const FootballField = () => {
     setThrowDuration(0);
     setIsTouchdown(false);
     setActiveKeys(new Set());
+    setIsSacked(false);
+    setShowSacked(false);
+    setShowPassComplete(false);
+    setShowPassIncomplete(false);
     setIsGameOver(false);
     setScore(0);
     setCurrentDown(1);
-    setNewScrimmage(80);
+    setNewScrimmage(80); // Reset to 20 yard line
     setPlayDeadTimer(0);
     setTouchdownTimer(0);
     setIncompleteTimer(0);
