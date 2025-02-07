@@ -47,6 +47,7 @@ const FootballField = () => {
   const [isTackled, setIsTackled] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [gameState, setGameState] = useState(GameState.READY);
+  const [touchdownReadyForReset, setTouchdownReadyForReset] = useState(false);
   
   const ROTATION_SPEED = 1;
   const MAX_POWER = 100;
@@ -56,11 +57,19 @@ const FootballField = () => {
   const MOVEMENT_SPEED = 0.07;
   const RECEIVER_SPEED = 20;
   const PLAY_DEAD_DURATION = 60;
-  const TOUCHDOWN_DURATION = 300; // 5 seconds at 60fps
+  const TOUCHDOWN_DURATION = 300;
   const CORNERBACK_SPEED = 19;
   const LINEBACKER_SPEED = 11;
+  const LINEBACKER_SHORT_FIELD_SPEED = LINEBACKER_SPEED / 2; // Half speed in short field
+  const LINEBACKER_OFFSET = 20; // Normal offset from ball
+  const MIN_LINEBACKER_OFFSET = 5; // Minimum offset in short field
   const SACK_DISTANCE = 5;
+  const SACK_DISTANCE_SHORT_FIELD = 1;
   const TACKLE_DISTANCE = 10;
+  const FIELD_LEFT = 5;     // 5% from left (sideline)
+  const FIELD_RIGHT = 95;   // 95% from right (sideline)
+  const ENDZONE_TOP = 10;    // Top endzone is 0-10%
+  const ENDZONE_BOTTOM = 90; // Bottom endzone is 90-100%
 
   // Check if ball and receiver intersect
   const checkCatch = (ballPos, receiverPos) => {
@@ -104,6 +113,16 @@ const FootballField = () => {
     return { caught: false };
   };
 
+  const getLBOffset = (scrimmageY) => {
+    // If the normal offset would put the LB out of bounds (negative y position)
+    if (scrimmageY - LINEBACKER_OFFSET < 0) {
+      // Only reduce the offset enough to keep the LB at y=0
+      return scrimmageY;
+    }
+    // Otherwise use the full offset
+    return LINEBACKER_OFFSET;
+  };
+
   const resetPositions = (options = {}) => {
     const {
       scrimmageY = 80,
@@ -113,6 +132,10 @@ const FootballField = () => {
       isFullReset = false,
       newState = GameState.READY
     } = options;
+
+    // Ensure scrimmage line is within field boundaries
+    const boundedScrimmageY = Math.max(ENDZONE_TOP, Math.min(ENDZONE_BOTTOM, scrimmageY));
+    const lbOffset = getLBOffset(boundedScrimmageY);
 
     // Handle down progression first
     let shouldTransitionToGameOver = false;
@@ -134,12 +157,12 @@ const FootballField = () => {
       // Wait 1 second before resetting positions
       setTimeout(() => {
         // Reset positions
-        setBallPosition({ x: 50, y: scrimmageY - 3 });
-        setQuarterbackPosition({ x: 50, y: scrimmageY });
-        setReceiverPosition({ x: 75, y: scrimmageY });
-        setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
-        setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
-        setInitialPosition({ x: 50, y: scrimmageY });
+        setBallPosition({ x: 50, y: boundedScrimmageY - 3 });
+        setQuarterbackPosition({ x: 50, y: boundedScrimmageY });
+        setReceiverPosition({ x: 75, y: boundedScrimmageY });
+        setCornerbackPosition({ x: 75, y: boundedScrimmageY - 5 });
+        setLinebackerPosition({ x: 50, y: boundedScrimmageY - lbOffset });
+        setInitialPosition({ x: 50, y: boundedScrimmageY });
         
         // Reset other game states
         setRotation(0);
@@ -171,12 +194,12 @@ const FootballField = () => {
     }
 
     // For other states (touchdown, game over, etc.), reset immediately
-    setBallPosition({ x: 50, y: scrimmageY - 3 });
-    setQuarterbackPosition({ x: 50, y: scrimmageY });
-    setReceiverPosition({ x: 75, y: scrimmageY });
-    setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
-    setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
-    setInitialPosition({ x: 50, y: scrimmageY });
+    setBallPosition({ x: 50, y: boundedScrimmageY - 3 });
+    setQuarterbackPosition({ x: 50, y: boundedScrimmageY });
+    setReceiverPosition({ x: 75, y: boundedScrimmageY });
+    setCornerbackPosition({ x: 75, y: boundedScrimmageY - 5 });
+    setLinebackerPosition({ x: 50, y: boundedScrimmageY - lbOffset });
+    setInitialPosition({ x: 50, y: boundedScrimmageY });
     
     // Reset game state
     setGameState(newState);
@@ -224,14 +247,17 @@ const FootballField = () => {
     // Handle down increment
     const nextDown = currentDown + 1;
     
+    // Calculate linebacker offset
+    const lbOffset = getLBOffset(scrimmageY);
+    
     // Wait 1 second with current positions to show the outcome
     setTimeout(() => {
-      // Reset positions
+      // Reset positions with LB in front of QB
       setBallPosition({ x: 50, y: scrimmageY - 3 });
       setQuarterbackPosition({ x: 50, y: scrimmageY });
       setReceiverPosition({ x: 75, y: scrimmageY });
       setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
-      setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
+      setLinebackerPosition({ x: 50, y: scrimmageY - lbOffset });
       setInitialPosition({ x: 50, y: scrimmageY });
       
       // Reset other game states
@@ -291,26 +317,77 @@ const FootballField = () => {
            throwProgress === 0;
   };
 
+  // Update the handleTouchdown function to include the delay
+  const handleTouchdown = () => {
+    setGameState(GameState.TOUCHDOWN);
+    setGameStarted(false);
+    setIsTouchdown(true);
+    setTouchdownReadyForReset(false);  // Start not ready for reset
+    setActiveKeys(new Set());
+    
+    // After 1 second delay, allow reset
+    setTimeout(() => {
+      setTouchdownReadyForReset(true);
+    }, 1000);
+  };
+
+  // Update the resetGame function to handle both game over and touchdown resets
+  const resetGame = (afterTouchdown = false) => {
+    // Reset all positions and game state
+    setBallPosition({ x: 50, y: 80 - 3 });
+    setQuarterbackPosition({ x: 50, y: 80 });
+    setReceiverPosition({ x: 75, y: 80 });
+    setCornerbackPosition({ x: 75, y: 75 });
+    setLinebackerPosition({ x: 50, y: 60 });
+    setRotation(0);
+    setPowerMeter(0);
+    setHasReachedMax(false);
+    setIsAdjusting(false);
+    setIsThrown(false);
+    setIsCaught(false);
+    setIsSacked(false);
+    setCatchOffset({ x: 0, y: 0 });
+    setRestTimer(0);
+    setThrowProgress(0);
+    setTargetDistance(0);
+    setInitialPosition({ x: 50, y: 80 });
+    setThrowDuration(0);
+    setIsTouchdown(false);
+    setIsTackled(false);
+    setGameStarted(false);
+    setCurrentDown(1);
+    setNewScrimmage(80);
+    setActiveKeys(new Set());
+    setShowInstructions(false);
+    setPlayDeadTimer(0);
+    setTouchdownTimer(0);
+    setShowPassComplete(false);
+    setShowPassIncomplete(false);
+    setShowSacked(false);
+    
+    // Only add points and keep score if it's after a touchdown
+    if (afterTouchdown) {
+      setScore(prev => prev + 7);
+    } else {
+      setScore(0);
+    }
+    
+    setGameState(GameState.READY);
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
       
-      // Handle Escape key always
       if (e.key === 'Escape') {
         setShowInstructions(false);
         return;
       }
 
-      // Only process Return key in READY state or after TOUCHDOWN
       if (e.key === 'Enter') {
-        if (gameState === GameState.TOUCHDOWN) {
-          // Reset to initial state after touchdown
-          resetPositions({ 
-            scrimmageY: 80,
-            isFullReset: true,
-            newState: GameState.READY
-          });
-          setCurrentDown(1);
+        if (gameState === GameState.TOUCHDOWN && touchdownReadyForReset) {
+          resetGame(true);  // Reset with touchdown scoring
+          setTouchdownReadyForReset(false);  // Reset the ready state
           return;
         }
         if (gameState === GameState.READY) {
@@ -319,7 +396,6 @@ const FootballField = () => {
           setActiveKeys(new Set());
           return;
         }
-        // Ignore Return key in all other states
         return;
       }
       
@@ -409,21 +485,17 @@ const FootballField = () => {
         if (isTouchdown) {
           setTouchdownTimer(prev => prev + 1);
           if (touchdownTimer >= TOUCHDOWN_DURATION) {
-            resetPositions({ 
-              scrimmageY: 80,
-              shouldAddTouchdown: true,
-              isFullReset: true 
-            });
+            resetGame(true);
           }
         }
         return;
       }
 
       // Update receiver position if game started
-      if (gameStarted && receiverPosition.y > -10 && !isTackled) {
+      if (gameStarted && !isTackled) {
         setReceiverPosition(prev => ({
           ...prev,
-          y: Math.max(-10, prev.y - (RECEIVER_SPEED * deltaTime) / 100)
+          y: Math.max(0, prev.y - (RECEIVER_SPEED * deltaTime) / 100)  // Allow into end zone
         }));
 
         // Update cornerback to follow receiver with slight delay
@@ -433,22 +505,78 @@ const FootballField = () => {
           const newX = prev.x + dx * 0.1;
           
           return {
-            x: Math.max(5, Math.min(95, newX)),
-            y: Math.max(-10, prev.y - (CORNERBACK_SPEED * deltaTime) / 100)
+            x: Math.max(FIELD_LEFT, Math.min(FIELD_RIGHT, newX)),
+            y: Math.max(0, prev.y - (CORNERBACK_SPEED * deltaTime) / 100)  // Allow into end zone
           };
         });
 
-        // Check for tackle after catch
+        // Check for touchdown when the ball enters either end zone
         if (isCaught) {
-          const dx = cornerbackPosition.x - receiverPosition.x;
-          const dy = cornerbackPosition.y - receiverPosition.y;
-          const distanceToCornerback = Math.sqrt(dx * dx + dy * dy);
+          const newBallPosition = {
+            x: receiverPosition.x + catchOffset.x,
+            y: receiverPosition.y + catchOffset.y
+          };
+          setBallPosition(newBallPosition);
           
-          if (distanceToCornerback < TACKLE_DISTANCE) {
-            setIsTackled(true);
-            const newScrimmageLine = receiverPosition.y;
-            setNewScrimmage(newScrimmageLine);
-            handlePlayOutcome(GameState.PASS_COMPLETE, newScrimmageLine);
+          // Check for touchdown first, before any other play outcome logic
+          if ((newBallPosition.y <= ENDZONE_TOP || newBallPosition.y >= ENDZONE_BOTTOM) && 
+              gameState !== GameState.TOUCHDOWN) {
+            handleTouchdown();
+            return;  // Exit immediately after touchdown
+          }
+
+          // Only check for tackle if not a touchdown
+          if (!isTouchdown && gameState !== GameState.TOUCHDOWN) {
+            const dx = cornerbackPosition.x - receiverPosition.x;
+            const dy = cornerbackPosition.y - receiverPosition.y;
+            const distanceToCornerback = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distanceToCornerback < TACKLE_DISTANCE) {
+              setIsTackled(true);
+              const newScrimmageLine = receiverPosition.y;
+              setNewScrimmage(newScrimmageLine);
+              handlePlayOutcome(GameState.PASS_COMPLETE, newScrimmageLine);
+            }
+          }
+        } else if (isThrown) {
+          // Only process throw logic if not a touchdown
+          if (!isTouchdown && gameState !== GameState.TOUCHDOWN) {
+            if (throwProgress >= throwDuration) {
+              // If ball wasn't caught by end of throw, it's incomplete
+              if (!isCaught) {
+                handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
+                return;
+              }
+            } else {
+              setThrowProgress(prev => prev + deltaTime);
+              const progress = Math.min(throwProgress / throwDuration, 1);
+              const angle = rotation * (Math.PI / 180);
+              
+              const distanceProgress = targetDistance * progress;
+              const newBallPosition = {
+                x: initialPosition.x + Math.sin(angle) * distanceProgress,
+                y: initialPosition.y - Math.cos(angle) * distanceProgress
+              };
+              
+              // Check for catch before updating ball position
+              const catchResult = checkCatch(newBallPosition, receiverPosition);
+              if (!isCaught && catchResult.caught) {
+                setIsCaught(true);
+                setCatchOffset(catchResult.offset);
+                setBallPosition({
+                  x: receiverPosition.x + catchResult.offset.x,
+                  y: receiverPosition.y + catchResult.offset.y
+                });
+              } else if (!isCaught) {
+                setBallPosition(newBallPosition);
+              }
+            }
+
+            // Only check sideline bounds if not a touchdown
+            if (ballPosition.x > FIELD_RIGHT || ballPosition.x < FIELD_LEFT) {
+              handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
+              return;
+            }
           }
         }
       }
@@ -460,48 +588,55 @@ const FootballField = () => {
           const dy = ballPosition.y - prev.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          if (distance < SACK_DISTANCE) {
-            const newScrimmageLine = Math.min(100, ballPosition.y + 5);
+          // Determine if we're in a short field situation
+          const isShortField = ballPosition.y - ENDZONE_TOP < LINEBACKER_OFFSET;
+          // Use appropriate sack distance based on field position
+          const currentSackDistance = isShortField ? SACK_DISTANCE_SHORT_FIELD : SACK_DISTANCE;
+          
+          if (distance < currentSackDistance) {
+            const newScrimmageLine = Math.min(ENDZONE_BOTTOM, ballPosition.y + 5);
             setNewScrimmage(newScrimmageLine);
             setIsSacked(true);
             handlePlayOutcome(GameState.SACKED, newScrimmageLine);
             return prev;
           }
 
-          // Normalize direction and move
-          const speed = (LINEBACKER_SPEED * deltaTime) / 100;
+          // Use slower speed in short field situations
+          const currentSpeed = isShortField ? LINEBACKER_SHORT_FIELD_SPEED : LINEBACKER_SPEED;
+          
+          // Normalize direction and move with constraints
+          const speed = (currentSpeed * deltaTime) / 100;
           return {
-            x: prev.x + (dx / distance) * speed,
-            y: prev.y + (dy / distance) * speed
+            x: Math.max(FIELD_LEFT, Math.min(FIELD_RIGHT, prev.x + (dx / distance) * speed)),
+            y: Math.max(0, Math.min(ENDZONE_BOTTOM, prev.y + (dy / distance) * speed)) // Allow LB to enter end zone
           };
         });
       }
 
-      // Handle play dead timer and reset
-      if (isTackled || isSacked || (isThrown && !isCaught && throwProgress >= throwDuration)) {
-        setPlayDeadTimer(prev => prev + 1);
-        if (playDeadTimer >= PLAY_DEAD_DURATION) {
-          // Reset positions after delay
-          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
-          setQuarterbackPosition({ x: 50, y: newScrimmage });
-          setReceiverPosition({ x: 75, y: newScrimmage });
-          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
-          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
-          setPlayDeadTimer(0);
-          setIsThrown(false);
-          setIsCaught(false);
-          setIsSacked(false);
-          setCatchOffset({ x: 0, y: 0 });
-          setRestTimer(0);
-          setThrowProgress(0);
-          setShowPassComplete(false);
-          setShowPassIncomplete(false);
-          setInitialPosition({ x: 50, y: newScrimmage }); // Center initial position
-          if (!isTouchdown) {
+      // Handle play dead timer and reset ONLY if not a touchdown
+      if (!isTouchdown && gameState !== GameState.TOUCHDOWN) {
+        if ((isTackled || isSacked || (isThrown && !isCaught && throwProgress >= throwDuration))) {
+          setPlayDeadTimer(prev => prev + 1);
+          if (playDeadTimer >= PLAY_DEAD_DURATION) {
+            // Reset positions after delay
+            setBallPosition({ x: 50, y: newScrimmage });
+            setQuarterbackPosition({ x: 50, y: newScrimmage });
+            setReceiverPosition({ x: 75, y: newScrimmage });
+            setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
+            setLinebackerPosition({ x: 50, y: newScrimmage - getLBOffset(newScrimmage) });
+            setPlayDeadTimer(0);
+            setIsThrown(false);
+            setIsCaught(false);
+            setIsSacked(false);
+            setCatchOffset({ x: 0, y: 0 });
+            setRestTimer(0);
+            setThrowProgress(0);
+            setShowPassComplete(false);
+            setShowPassIncomplete(false);
+            setInitialPosition({ x: 50, y: newScrimmage });
             setGameStarted(false);
+            setIsTackled(false);
           }
-          setIsTackled(false);
-          setGameStarted(false);
         }
       }
 
@@ -515,15 +650,15 @@ const FootballField = () => {
       // Update QB and ball movement together in updateGame
       if (!isThrown && gameStarted && !isTackled && !isSacked) {
         const newPos = { ...ballPosition };
-        if (activeKeys.has('w')) newPos.y = Math.max(10, ballPosition.y - MOVEMENT_SPEED * deltaTime);
-        if (activeKeys.has('s')) newPos.y = Math.min(90, ballPosition.y + MOVEMENT_SPEED * deltaTime);
-        if (activeKeys.has('a')) newPos.x = Math.max(5, ballPosition.x - MOVEMENT_SPEED * deltaTime);
-        if (activeKeys.has('d')) newPos.x = Math.min(95, ballPosition.x + MOVEMENT_SPEED * deltaTime);
+        if (activeKeys.has('w')) newPos.y = Math.max(0, ballPosition.y - MOVEMENT_SPEED * deltaTime);  // Allow into end zone
+        if (activeKeys.has('s')) newPos.y = Math.min(100, ballPosition.y + MOVEMENT_SPEED * deltaTime);  // Allow into end zone
+        if (activeKeys.has('a')) newPos.x = Math.max(FIELD_LEFT, ballPosition.x - MOVEMENT_SPEED * deltaTime);
+        if (activeKeys.has('d')) newPos.x = Math.min(FIELD_RIGHT, ballPosition.x + MOVEMENT_SPEED * deltaTime);
         
         // Only update positions if they've changed
         if (newPos.x !== ballPosition.x || newPos.y !== ballPosition.y) {
           setBallPosition(newPos);
-          setQuarterbackPosition({ x: newPos.x, y: newPos.y + 3 }); // QB 3 units below ball
+          setQuarterbackPosition({ x: newPos.x, y: newPos.y + 3 });
         }
       }
 
@@ -544,108 +679,11 @@ const FootballField = () => {
         });
       }
 
-      // If ball is caught, move it with the receiver maintaining offset
-      if (isCaught) {
-        const newBallPosition = {
-          x: receiverPosition.x + catchOffset.x,
-          y: receiverPosition.y + catchOffset.y
-        };
-        setBallPosition(newBallPosition);
-        
-        // Check for touchdown when the ball's center crosses the goal line
-        if (newBallPosition.y <= 0 && gameState !== GameState.TOUCHDOWN) {
-          setGameState(GameState.TOUCHDOWN);
-          setGameStarted(false);
-          setScore(prev => prev + 7); // Add points immediately
-          setActiveKeys(new Set()); // Clear any active keys
-          return;
-        }
-      } else if (isThrown) {
-        if (throwProgress >= throwDuration) {
-          // If ball wasn't caught by end of throw, it's incomplete
-          if (!isCaught) {
-            handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
-            return;
-          }
-          
-          setRestTimer(prev => prev + 1);
-          if (restTimer >= REST_DURATION) {
-            setIsThrown(false);
-            setIsCaught(false);
-            setCatchOffset({ x: 0, y: 0 });
-            setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
-            setQuarterbackPosition({ x: 50, y: newScrimmage });
-            setRestTimer(0);
-            setThrowProgress(0);
-          }
-        } else {
-          setThrowProgress(prev => prev + deltaTime);
-          const progress = Math.min(throwProgress / throwDuration, 1);
-          const angle = rotation * (Math.PI / 180);
-          
-          const distanceProgress = targetDistance * progress;
-          const newBallPosition = {
-            x: initialPosition.x + Math.sin(angle) * distanceProgress,
-            y: initialPosition.y - Math.cos(angle) * distanceProgress
-          };
-          
-          // Check for catch before updating ball position
-          const catchResult = checkCatch(newBallPosition, receiverPosition);
-          if (!isCaught && catchResult.caught) {
-            setIsCaught(true);
-            setCatchOffset(catchResult.offset);
-            setBallPosition({
-              x: receiverPosition.x + catchResult.offset.x,
-              y: receiverPosition.y + catchResult.offset.y
-            });
-          } else if (!isCaught) {
-            setBallPosition(newBallPosition);
-          }
-        }
-
-        // Reset if out of bounds
-        if (ballPosition.y > 100 || ballPosition.y < -10 || 
-            ballPosition.x > 100 || ballPosition.x < 0) {
-          handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
-          return;
-        }
-      }
-
-      // Update touchdown timer and reset
-      if (isTouchdown) {
+      // Update touchdown timer separately from all other game logic
+      if (isTouchdown || gameState === GameState.TOUCHDOWN) {
         setTouchdownTimer(prev => prev + 1);
         if (touchdownTimer >= TOUCHDOWN_DURATION) {
-          // Reset everything after touchdown celebration
           setTouchdownTimer(0);
-          setIsTouchdown(false);
-          setGameStarted(false);
-          setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
-          setQuarterbackPosition({ x: 50, y: 80 });
-          setReceiverPosition({ x: 75, y: 80 });
-          setCornerbackPosition({ x: 75, y: 75 });
-          setLinebackerPosition({ x: 50, y: 60 });
-          setRotation(0);
-          setPowerMeter(0);
-          setHasReachedMax(false);
-          setIsAdjusting(false);
-          setIsThrown(false);
-          setIsCaught(false);
-          setIsSacked(false);
-          setCatchOffset({ x: 0, y: 0 });
-          setRestTimer(0);
-          setThrowProgress(0);
-          setTargetDistance(0);
-          setInitialPosition({ x: 50, y: 80 });
-          setThrowDuration(0);
-          setCurrentDown(1); // Reset to first down for new possession
-          setNewScrimmage(80); // Reset to 20 yard line
-          setIsTackled(false);
-          setShowPassComplete(false);
-          setShowPassIncomplete(false);
-          setShowSacked(false);
-          setPlayDeadTimer(0);
-          setIsGameOver(false);
-          setScore(prev => prev + 7); // Add 7 points for touchdown
         }
       }
 
@@ -667,16 +705,7 @@ const FootballField = () => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown]);
-
-  const resetGame = () => {
-    resetPositions({
-      scrimmageY: 80,
-      shouldResetScore: true,
-      isFullReset: true,
-      newState: GameState.READY
-    });
-  };
+  }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown, touchdownReadyForReset]);
 
   return (
     <div className="football-field">
@@ -686,7 +715,98 @@ const FootballField = () => {
       >
         Instructions
       </button>
-      
+
+      {/* Field Background Layer */}
+      <div className="field-background">
+        <div className="end-zone north">
+          <div className="team-name lancers">LANCERS</div>
+          <div className="goal-post north"></div>
+          <div className="pylon left"></div>
+          <div className="pylon right"></div>
+        </div>
+        <div className="main-field">
+          {/* Yard lines with numbers and hash marks */}
+          {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((number, index) => (
+            <div key={index} className={`field-section ${number === 50 ? 'fifty' : ''}`} style={{ top: `${(index + 1) * 10}%` }}>
+              <div className="yard-line"></div>
+              <div className="yard-number left">{number}</div>
+              <div className="yard-number right">{number}</div>
+              <div className="hash-marks">
+                <div className="hash left"></div>
+                <div className="hash right"></div>
+              </div>
+            </div>
+          ))}
+          <div className="sideline left"></div>
+          <div className="sideline right"></div>
+        </div>
+        <div className="end-zone south">
+          <div className="team-name wildcats">WILDCATS</div>
+          <div className="goal-post south"></div>
+          <div className="pylon left"></div>
+          <div className="pylon right"></div>
+        </div>
+      </div>
+
+      {/* Game Layer - Players and Ball */}
+      <div className="game-layer">
+        {/* Football and Power Meter - Preserved exactly as is */}
+        <div className="football-container" style={{ 
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          top: `${ballPosition.y}%`,
+          left: `${ballPosition.x}%`
+        }}>
+          <div className="football">🏈</div>
+          {!isThrown && (
+            <div className="power-meter" style={{ 
+              height: `${Math.max(5, powerMeter * 2)}px`
+            }}></div>
+          )}
+        </div>
+
+        {/* Players */}
+        <div className="quarterback" style={{
+          top: `${quarterbackPosition.y}%`,
+          left: `${quarterbackPosition.x}%`
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
+            alt="quarterback"
+          />
+        </div>
+
+        <div className="receiver" style={{
+          top: `${receiverPosition.y}%`,
+          left: `${receiverPosition.x}%`
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
+            alt="receiver"
+          />
+        </div>
+
+        <div className="cornerback" style={{
+          top: `${cornerbackPosition.y}%`,
+          left: `${cornerbackPosition.x}%`
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
+            alt="cornerback"
+          />
+        </div>
+
+        <div className="linebacker" style={{
+          top: `${linebackerPosition.y}%`,
+          left: `${linebackerPosition.x}%`
+        }}>
+          <img 
+            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
+            alt="linebacker"
+          />
+        </div>
+      </div>
+
+      {/* UI Elements */}
       {showInstructions && (
         <div className="instructions-modal">
           <div className="instructions-content">
@@ -717,21 +837,17 @@ const FootballField = () => {
         <div className="stat">
           <span className="label">Ball On:</span>
           <span className="value">
-            {100 - newScrimmage > 100 ? "End Zone" : Math.round(100 - newScrimmage)}
+            {ballPosition.y <= ENDZONE_TOP || ballPosition.y >= ENDZONE_BOTTOM ? 
+              "End Zone" : 
+              Math.round(ballPosition.y >= 50 ? ballPosition.y - ENDZONE_TOP : 100 - ballPosition.y - ENDZONE_TOP)}
           </span>
         </div>
       </div>
 
       <div className="start-message">
-        {gameState === GameState.GAME_OVER ? (
-          <button className="play-again-button" onClick={resetGame}>
-            Play Again?
-          </button>
-        ) : (
-          gameState === GameState.TOUCHDOWN ? 'Press Return to Keep Playing' : 
-          gameState === GameState.READY ? 'Press Return to Hike Ball' :
-          ''
-        )}
+        {(gameState === GameState.TOUCHDOWN && touchdownReadyForReset) ? 'Press Return to Keep Playing' : 
+         gameState === GameState.READY ? 'Press Return to Hike Ball' :
+         ''}
       </div>
 
       {gameState === GameState.TOUCHDOWN && (
@@ -763,140 +879,11 @@ const FootballField = () => {
           <div className="game-over-message">
             GAME OVER
           </div>
-          <button className="play-again-button" onClick={resetGame}>
+          <button className="play-again-button" onClick={() => resetGame(false)}>
             Play Again?
           </button>
         </div>
       )}
-
-      <div className="end-zone north">
-        <div className="team-name lancers">LANCERS</div>
-        <div className="goal-post north"></div>
-        <div className="pylon left"></div>
-        <div className="pylon right"></div>
-      </div>
-      <div className="main-field">
-        {/* Football and Power Meter */}
-        <div className="football-container" style={{ 
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-          top: `${ballPosition.y}%`,
-          left: `${ballPosition.x}%`,
-          position: 'absolute'
-        }}>
-          <div className="football">🏈</div>
-          {!isThrown && (
-            <div className="power-meter" style={{ 
-              height: `${Math.max(5, powerMeter * 2)}px`
-            }}></div>
-          )}
-        </div>
-
-        {/* Quarterback */}
-        <div className="quarterback" style={{
-          position: 'absolute',
-          top: `${quarterbackPosition.y}%`,
-          left: `${quarterbackPosition.x}%`,
-          transform: 'translate(-50%, -50%)',
-          width: '24px',
-          height: '24px',
-          zIndex: 10
-        }}>
-          <img 
-            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
-            alt="quarterback"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-
-        {/* Wide Receiver */}
-        <div className="receiver" style={{
-          position: 'absolute',
-          top: `${receiverPosition.y}%`,
-          left: `${receiverPosition.x}%`,
-          transform: 'translate(-50%, -50%)',
-          width: '24px',
-          height: '24px'
-        }}>
-          <img 
-            src={`${process.env.PUBLIC_URL}/white-football-helmet.png`} 
-            alt="receiver"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-
-        {/* Cornerback */}
-        <div className="cornerback" style={{
-          position: 'absolute',
-          top: `${cornerbackPosition.y}%`,
-          left: `${cornerbackPosition.x}%`,
-          transform: 'translate(-50%, -50%)',
-          width: '24px',
-          height: '24px',
-          zIndex: 10
-        }}>
-          <img 
-            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
-            alt="cornerback"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-
-        {/* Linebacker */}
-        <div className="linebacker" style={{
-          position: 'absolute',
-          top: `${linebackerPosition.y}%`,
-          left: `${linebackerPosition.x}%`,
-          transform: 'translate(-50%, -50%)',
-          width: '24px',
-          height: '24px',
-          zIndex: 10
-        }}>
-          <img 
-            src={`${process.env.PUBLIC_URL}/red-football-helmet.png`} 
-            alt="linebacker"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-
-        {/* Yard lines with numbers and hash marks */}
-        {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((number, index) => (
-          <div key={index} className={`field-section ${number === 50 ? 'fifty' : ''}`} style={{ top: `${(index + 1) * 10}%` }}>
-            <div className="yard-line"></div>
-            <div className="yard-number left">{number}</div>
-            <div className="yard-number right">{number}</div>
-            <div className="hash-marks">
-              <div className="hash left"></div>
-              <div className="hash right"></div>
-            </div>
-          </div>
-        ))}
-
-        {/* Sidelines */}
-        <div className="sideline left"></div>
-        <div className="sideline right"></div>
-      </div>
-      <div className="end-zone south">
-        <div className="team-name wildcats">WILDCATS</div>
-        <div className="goal-post south"></div>
-        <div className="pylon left"></div>
-        <div className="pylon right"></div>
-      </div>
     </div>
   );
 };

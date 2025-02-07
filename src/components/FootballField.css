@@ -2,12 +2,33 @@
   width: min(400px, 60vh);
   height: min(90vh, 600px);
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  background-color: #2e7d32; /* Dark green for the field */
-  border: 2px solid white;
   position: relative;
   box-sizing: border-box;
+  background-color: #2e7d32;
+  border: 2px solid white;
+}
+
+/* Field background layer */
+.field-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Game elements layer */
+.game-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
 body {
@@ -34,13 +55,12 @@ body {
 
 .end-zone {
   height: 10%;
-  background-color: #1b5e20; /* Darker green for end zones */
+  background-color: #1b5e20;
   border-bottom: 2px solid white;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1;
   pointer-events: none;
 }
 
@@ -50,7 +70,7 @@ body {
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
-  z-index: 1;
+  z-index: 3;
   -webkit-text-stroke: 2px white;
   text-stroke: 2px white;
 }
@@ -72,7 +92,6 @@ body {
   height: 80%;
   position: relative;
   overflow: hidden;
-  z-index: 1;
 }
 
 .field-section {
@@ -91,6 +110,7 @@ body {
   height: 2px;
   background-color: white;
   position: absolute;
+  z-index: 1;
 }
 
 .yard-number {
@@ -140,6 +160,7 @@ body {
   height: 100%;
   background-color: white;
   top: 0;
+  z-index: 1;
 }
 
 .sideline.left {
@@ -158,6 +179,7 @@ body {
   height: 20px;
   border: 4px solid #FFD700; /* Changed to yellow */
   border-bottom: none;
+  z-index: 2;
 }
 
 .goal-post.north {
@@ -230,19 +252,18 @@ body {
 
 .football-container {
   position: absolute;
-  z-index: 3;
   display: flex;
   justify-content: center;
   align-items: center;
   transform-origin: center center;
+  z-index: 100;
 }
 
 .football {
   font-size: 12px;
   filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.3));
-  transform: rotate(135deg); /* Align football with vertical axis */
+  transform: rotate(135deg);
   position: relative;
-  z-index: 2;
 }
 
 .power-meter {
@@ -255,7 +276,6 @@ body {
   transform: translateX(-50%) rotate(0deg);
   transform-origin: bottom center;
   min-height: 5px;
-  z-index: 1;
 }
 
 .power-meter::after {
@@ -479,4 +499,40 @@ body {
 .play-again-button:hover {
   background-color: white;
   transform: scale(1.05);
+}
+
+/* Field elements */
+.yard-line, .sideline, .hash-marks, .field-section {
+  z-index: 1;
+}
+
+/* Players */
+.quarterback, .receiver, .cornerback, .linebacker {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+}
+
+.quarterback img, .receiver img, .cornerback img, .linebacker img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Goal posts */
+.goal-post {
+  z-index: 2;
+}
+
+/* Team names */
+.team-name {
+  z-index: 3;
+}
+
+/* Remove any isolation properties that might create new stacking contexts */
+.main-field, .end-zone {
+  isolation: unset;
 } 
