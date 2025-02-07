@@ -17,22 +17,22 @@ const FootballField = () => {
   const [powerMeter, setPowerMeter] = useState(0);
   const [hasReachedMax, setHasReachedMax] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
-  const [ballPosition, setBallPosition] = useState({ x: 50, y: 80 });
+  const [ballPosition, setBallPosition] = useState({ x: 50, y: 70 });
   const [ballVelocity, setBallVelocity] = useState({ x: 0, y: 0 });
   const [isThrown, setIsThrown] = useState(false);
   const [isCaught, setIsCaught] = useState(false);
   const [catchOffset, setCatchOffset] = useState({ x: 0, y: 0 });
   const [restTimer, setRestTimer] = useState(0);
   const [targetDistance, setTargetDistance] = useState(0);
-  const [initialPosition, setInitialPosition] = useState({ x: 50, y: 80 });
+  const [initialPosition, setInitialPosition] = useState({ x: 50, y: 70 });
   const [throwProgress, setThrowProgress] = useState(0);
   const [throwDuration, setThrowDuration] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
-  const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 80 });
+  const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 70 });
   const [isTouchdown, setIsTouchdown] = useState(false);
-  const [cornerbackPosition, setCornerbackPosition] = useState({ x: 75, y: 75 });
-  const [linebackerPosition, setLinebackerPosition] = useState({ x: 50, y: 60 });
-  const [quarterbackPosition, setQuarterbackPosition] = useState({ x: 50, y: 80 });
+  const [cornerbackPosition, setCornerbackPosition] = useState({ x: 75, y: 65 });
+  const [linebackerPosition, setLinebackerPosition] = useState({ x: 50, y: 50 });
+  const [quarterbackPosition, setQuarterbackPosition] = useState({ x: 50, y: 70 });
   const [isSacked, setIsSacked] = useState(false);
   const [showSacked, setShowSacked] = useState(false);
   const [showPassComplete, setShowPassComplete] = useState(false);
@@ -252,8 +252,8 @@ const FootballField = () => {
     
     // Wait 1 second with current positions to show the outcome
     setTimeout(() => {
-      // Reset positions with LB in front of QB
-      setBallPosition({ x: 50, y: scrimmageY - 3 });
+      // Reset all positions for next play
+      setBallPosition({ x: 50, y: scrimmageY });
       setQuarterbackPosition({ x: 50, y: scrimmageY });
       setReceiverPosition({ x: 75, y: scrimmageY });
       setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
@@ -333,12 +333,13 @@ const FootballField = () => {
 
   // Update the resetGame function to handle both game over and touchdown resets
   const resetGame = (afterTouchdown = false) => {
-    // Reset all positions and game state
-    setBallPosition({ x: 50, y: 80 - 3 });
-    setQuarterbackPosition({ x: 50, y: 80 });
-    setReceiverPosition({ x: 75, y: 80 });
-    setCornerbackPosition({ x: 75, y: 75 });
-    setLinebackerPosition({ x: 50, y: 60 });
+    // Reset all positions and game state to south 20 yard line
+    setBallPosition({ x: 50, y: 70 });
+    setQuarterbackPosition({ x: 50, y: 70 });
+    setReceiverPosition({ x: 75, y: 70 });
+    setCornerbackPosition({ x: 75, y: 65 });
+    setLinebackerPosition({ x: 50, y: 50 });
+    setInitialPosition({ x: 50, y: 70 });
     setRotation(0);
     setPowerMeter(0);
     setHasReachedMax(false);
@@ -350,7 +351,6 @@ const FootballField = () => {
     setRestTimer(0);
     setThrowProgress(0);
     setTargetDistance(0);
-    setInitialPosition({ x: 50, y: 80 });
     setThrowDuration(0);
     setIsTouchdown(false);
     setIsTackled(false);
@@ -750,21 +750,7 @@ const FootballField = () => {
 
       {/* Game Layer - Players and Ball */}
       <div className="game-layer">
-        {/* Football and Power Meter - Preserved exactly as is */}
-        <div className="football-container" style={{ 
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-          top: `${ballPosition.y}%`,
-          left: `${ballPosition.x}%`
-        }}>
-          <div className="football">🏈</div>
-          {!isThrown && (
-            <div className="power-meter" style={{ 
-              height: `${Math.max(5, powerMeter * 2)}px`
-            }}></div>
-          )}
-        </div>
-
-        {/* Players */}
+        {/* Players first */}
         <div className="quarterback" style={{
           top: `${quarterbackPosition.y}%`,
           left: `${quarterbackPosition.x}%`
@@ -804,6 +790,20 @@ const FootballField = () => {
             alt="linebacker"
           />
         </div>
+
+        {/* Ball last so it's rendered on top */}
+        <div className="football-container" style={{ 
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          top: `${ballPosition.y}%`,
+          left: `${ballPosition.x}%`
+        }}>
+          <div className="football">🏈</div>
+          {!isThrown && (
+            <div className="power-meter" style={{ 
+              height: `${Math.max(5, powerMeter * 2)}px`
+            }}></div>
+          )}
+        </div>
       </div>
 
       {/* UI Elements */}
@@ -837,9 +837,17 @@ const FootballField = () => {
         <div className="stat">
           <span className="label">Ball On:</span>
           <span className="value">
-            {ballPosition.y <= ENDZONE_TOP || ballPosition.y >= ENDZONE_BOTTOM ? 
-              "End Zone" : 
-              Math.round(ballPosition.y >= 50 ? ballPosition.y - ENDZONE_TOP : 100 - ballPosition.y - ENDZONE_TOP)}
+            {ballPosition.y <= ENDZONE_TOP ? "North End Zone" :
+             ballPosition.y >= ENDZONE_BOTTOM ? "South End Zone" :
+             // Convert field position percentage to yard line (0-100)
+             // Field is 80% of total height (10% each end zone)
+             // Yard lines go from 0 to 50 then back to 0
+             (() => {
+               // Convert position to yards (field is 80 units, from 10 to 90)
+               const relativePosition = ((ballPosition.y - ENDZONE_TOP) / 80) * 100;
+               // Return the yard line (0-50 from either end)
+               return Math.round(relativePosition <= 50 ? relativePosition : 100 - relativePosition);
+             })()}
           </span>
         </div>
       </div>
