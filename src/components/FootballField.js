@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import './FootballField.css';
 
+const GameState = {
+  READY: 'READY',           // Ready to hike
+  PLAYING: 'PLAYING',       // Ball in play
+  PASS_COMPLETE: 'PASS_COMPLETE',
+  PASS_INCOMPLETE: 'PASS_INCOMPLETE',
+  TOUCHDOWN: 'TOUCHDOWN',
+  SACKED: 'SACKED',
+  GAME_OVER: 'GAME_OVER'
+};
+
 const FootballField = () => {
   const [rotation, setRotation] = useState(0);
   const [activeKeys, setActiveKeys] = useState(new Set());
@@ -36,6 +46,7 @@ const FootballField = () => {
   const [incompleteTimer, setIncompleteTimer] = useState(0);
   const [isTackled, setIsTackled] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [gameState, setGameState] = useState(GameState.READY);
   
   const ROTATION_SPEED = 1;
   const MAX_POWER = 100;
@@ -95,66 +106,132 @@ const FootballField = () => {
     return { caught: false };
   };
 
+  const resetPositions = (options = {}) => {
+    const {
+      scrimmageY = 80,
+      shouldResetScore = false,
+      shouldAddTouchdown = false,
+      shouldIncrementDown = false,
+      isFullReset = false,
+      newState = GameState.READY
+    } = options;
+
+    // Handle down progression
+    if (shouldIncrementDown) {
+      const nextDown = currentDown + 1;
+      if (nextDown > 4) {
+        setGameState(GameState.GAME_OVER);
+      } else {
+        setCurrentDown(nextDown);
+      }
+    }
+
+    // For incomplete passes, complete passes, and sacks, delay the position reset
+    if ([GameState.PASS_COMPLETE, GameState.PASS_INCOMPLETE, GameState.SACKED].includes(newState)) {
+      // Set the game state immediately to show the message
+      setGameState(newState);
+      setGameStarted(false);
+      
+      // Wait 1 second before resetting positions
+      setTimeout(() => {
+        // Reset positions
+        setBallPosition({ x: 50, y: scrimmageY - 3 });
+        setQuarterbackPosition({ x: 50, y: scrimmageY });
+        setReceiverPosition({ x: 75, y: scrimmageY });
+        setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
+        setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
+        setInitialPosition({ x: 50, y: scrimmageY });
+        
+        // Reset other game states
+        setRotation(0);
+        setPowerMeter(0);
+        setIsAdjusting(false);
+        setIsThrown(false);
+        setIsCaught(false);
+        setIsSacked(false);
+        setCatchOffset({ x: 0, y: 0 });
+        setRestTimer(0);
+        setThrowProgress(0);
+        setHasReachedMax(false);
+        setTargetDistance(0);
+        setThrowDuration(0);
+        setIsTouchdown(false);
+        setIsTackled(false);
+
+        // Wait another 1 second before clearing the message
+        setTimeout(() => {
+          setGameState(GameState.READY);
+        }, 1000);
+      }, 1000);
+      
+      return;
+    }
+
+    // For other states (touchdown, game over, etc.), reset immediately
+    setBallPosition({ x: 50, y: scrimmageY - 3 });
+    setQuarterbackPosition({ x: 50, y: scrimmageY });
+    setReceiverPosition({ x: 75, y: scrimmageY });
+    setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
+    setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
+    setInitialPosition({ x: 50, y: scrimmageY });
+    
+    // Reset game state
+    setGameState(newState);
+    setGameStarted(false);
+    setRotation(0);
+    setPowerMeter(0);
+    setIsAdjusting(false);
+    setIsThrown(false);
+    setIsCaught(false);
+    setIsSacked(false);
+    setCatchOffset({ x: 0, y: 0 });
+    setRestTimer(0);
+    setThrowProgress(0);
+    setHasReachedMax(false);
+    setTargetDistance(0);
+    setThrowDuration(0);
+    setIsTouchdown(false);
+    setIsTackled(false);
+    
+    // Handle scoring
+    if (shouldResetScore) {
+      setScore(0);
+    }
+    if (shouldAddTouchdown) {
+      setScore(prev => prev + 7);
+    }
+
+    // Handle full reset
+    if (isFullReset) {
+      setCurrentDown(1);
+      setNewScrimmage(80);
+      setActiveKeys(new Set());
+      setShowInstructions(false);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
+      
       if (e.key === 'Enter') {
-        if (isTouchdown) {
-          // Reset everything after touchdown
-          setTouchdownTimer(0);
-          setIsTouchdown(false);
-          setGameStarted(false);
-          setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
-          setQuarterbackPosition({ x: 50, y: 80 });
-          setReceiverPosition({ x: 75, y: 80 });
-          setCornerbackPosition({ x: 75, y: 75 });
-          setLinebackerPosition({ x: 50, y: 60 });
-          setRotation(0);
-          setPowerMeter(0);
-          setHasReachedMax(false);
-          setIsAdjusting(false);
-          setIsThrown(false);
-          setIsCaught(false);
-          setIsSacked(false);
-          setCatchOffset({ x: 0, y: 0 });
-          setRestTimer(0);
-          setThrowProgress(0);
-          setTargetDistance(0);
-          setInitialPosition({ x: 50, y: 80 });
-          setThrowDuration(0);
-          setCurrentDown(1); // Reset to first down for new possession
-          setNewScrimmage(80); // Reset to 20 yard line
-          setIsTackled(false);
-          setShowPassComplete(false);
-          setShowPassIncomplete(false);
-          setShowSacked(false);
-          setPlayDeadTimer(0);
-          setIsGameOver(false);
-          setScore(prev => prev + 7); // Add 7 points for touchdown
-        } else if (!gameStarted) {
+        if (gameState === GameState.TOUCHDOWN) {
+          resetPositions({ 
+            scrimmageY: 80,
+            shouldAddTouchdown: true,
+            isFullReset: true 
+          });
+        } else if (gameState === GameState.READY || 
+                   gameState === GameState.PASS_COMPLETE || 
+                   gameState === GameState.PASS_INCOMPLETE || 
+                   gameState === GameState.SACKED) {
+          setGameState(GameState.PLAYING);
           setGameStarted(true);
-        } else {
-          // Reset game state
-          setGameStarted(false);
-          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Ball 3 units above QB
-          setQuarterbackPosition({ x: 50, y: newScrimmage });
-          setReceiverPosition({ x: 75, y: newScrimmage });
-          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
-          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
-          setRotation(0);
-          setPowerMeter(0);
-          setHasReachedMax(false);
-          setIsAdjusting(false);
-          setIsThrown(false);
-          setIsCaught(false);
-          setCatchOffset({ x: 0, y: 0 });
-          setRestTimer(0);
-          setThrowProgress(0);
-          setTargetDistance(0);
-          setInitialPosition({ x: 50, y: newScrimmage });
-          setThrowDuration(0);
-          setIsTouchdown(false);
-          setActiveKeys(new Set());
+        } else if (gameState === GameState.PLAYING) {
+          resetPositions({ 
+            scrimmageY: newScrimmage,
+            newState: GameState.READY 
+          });
         }
       } else if (e.key === ' ') {
         e.preventDefault();
@@ -256,50 +333,47 @@ const FootballField = () => {
           
           if (distanceToCornerback < TACKLE_DISTANCE) {
             setIsTackled(true);
-            setShowPassComplete(true);
             const newScrimmageLine = receiverPosition.y;
             setNewScrimmage(newScrimmageLine);
-            setGameStarted(false);
-            // Immediately reset positions to new scrimmage line
-            setBallPosition({ x: 50, y: newScrimmageLine - 3 }); // Ball 3 units above QB
-            setQuarterbackPosition({ x: 50, y: newScrimmageLine });
-            setReceiverPosition({ x: 75, y: newScrimmageLine });
-            setCornerbackPosition({ x: 75, y: newScrimmageLine - 5 });
-            setLinebackerPosition({ x: 50, y: newScrimmageLine - 20 });
-            setInitialPosition({ x: 50, y: newScrimmageLine }); // Update initial position too
-            setRotation(0); // Reset rotation
+            resetPositions({ 
+              scrimmageY: newScrimmageLine,
+              shouldIncrementDown: true,
+              newState: GameState.PASS_COMPLETE
+            });
           }
         }
       }
 
       // Add linebacker movement and sack detection
-      if (gameStarted && !isThrown && !isSacked && !isTackled) {
-        // Move linebacker towards QB
+      if (gameState === GameState.PLAYING && !isThrown && !isSacked) {
         setLinebackerPosition(prev => {
           const dx = ballPosition.x - prev.x;
           const dy = ballPosition.y - prev.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
           if (distance < SACK_DISTANCE) {
-            setIsSacked(true);
-            setShowSacked(true);
-            const newScrimmageLine = Math.min(100, ballPosition.y + 5); // Move back 5 yards
+            const newScrimmageLine = Math.min(100, ballPosition.y + 5);
             setNewScrimmage(newScrimmageLine);
-            setGameStarted(false);
-            // Reset positions for next down
-            setBallPosition({ x: 50, y: newScrimmageLine - 3 }); // Ball 3 units above QB
-            setQuarterbackPosition({ x: 50, y: newScrimmageLine });
-            setReceiverPosition({ x: 75, y: newScrimmageLine });
-            setCornerbackPosition({ x: 75, y: newScrimmageLine - 5 });
-            setLinebackerPosition({ x: 50, y: newScrimmageLine - 20 });
-            setInitialPosition({ x: 50, y: newScrimmageLine }); // Update initial position too
-            setRotation(0); // Reset rotation
-
-            // Start a timer to hide the sacked message
-            setTimeout(() => {
-              setShowSacked(false);
-            }, 2000);
-
+            const nextDown = currentDown + 1;
+            if (nextDown > 4) {
+              resetPositions({ 
+                scrimmageY: newScrimmageLine,
+                newState: GameState.GAME_OVER
+              });
+            } else {
+              setCurrentDown(nextDown);
+              resetPositions({ 
+                scrimmageY: newScrimmageLine,
+                newState: GameState.SACKED
+              });
+              
+              // Hide sacked message after 2 seconds
+              setTimeout(() => {
+                if (gameState === GameState.SACKED) {
+                  setGameState(GameState.READY);
+                }
+              }, 2000);
+            }
             return prev;
           }
 
@@ -316,19 +390,12 @@ const FootballField = () => {
       if (isTackled || isSacked || (isThrown && !isCaught && throwProgress >= throwDuration)) {
         setPlayDeadTimer(prev => prev + 1);
         if (playDeadTimer >= PLAY_DEAD_DURATION) {
-          // Reset positions after delay - always center at x: 50
-          const nextDown = currentDown + 1;
-          const isNextDown = !isTouchdown && nextDown <= 4;
-          
-          // Reset all positions
+          // Reset positions after delay
           setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
           setQuarterbackPosition({ x: 50, y: newScrimmage });
           setReceiverPosition({ x: 75, y: newScrimmage });
           setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
           setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
-          setInitialPosition({ x: 50, y: newScrimmage }); // Center initial position
-          
-          // Reset all states
           setPlayDeadTimer(0);
           setIsThrown(false);
           setIsCaught(false);
@@ -338,18 +405,18 @@ const FootballField = () => {
           setThrowProgress(0);
           setShowPassComplete(false);
           setShowPassIncomplete(false);
-          setRotation(0); // Reset rotation
-          setIsTackled(false);
-          setGameStarted(false);
-
-          // Handle down progression
+          setInitialPosition({ x: 50, y: newScrimmage }); // Center initial position
           if (!isTouchdown) {
+            const nextDown = currentDown + 1;
             if (nextDown > 4) {
               setIsGameOver(true);
+              setGameStarted(false);
             } else {
               setCurrentDown(nextDown);
             }
           }
+          setIsTackled(false);
+          setGameStarted(false);
         }
       }
 
@@ -401,26 +468,30 @@ const FootballField = () => {
         setBallPosition(newBallPosition);
         
         // Check for touchdown when the ball's center crosses the goal line
-        if (newBallPosition.y <= 0 && !isTouchdown) {
-          setIsTouchdown(true);
+        if (newBallPosition.y <= 0 && gameState !== GameState.TOUCHDOWN) {
+          setGameState(GameState.TOUCHDOWN);
         }
       } else if (isThrown) {
         if (throwProgress >= throwDuration) {
+          // If ball wasn't caught by end of throw, it's incomplete
+          if (!isCaught) {
+            resetPositions({ 
+              scrimmageY: newScrimmage,
+              shouldIncrementDown: true,
+              newState: GameState.PASS_INCOMPLETE
+            });
+            return;
+          }
+          
           setRestTimer(prev => prev + 1);
           if (restTimer >= REST_DURATION) {
-            // Reset after throw completion
             setIsThrown(false);
             setIsCaught(false);
             setCatchOffset({ x: 0, y: 0 });
-            setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball
+            setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball and keep above QB
             setQuarterbackPosition({ x: 50, y: newScrimmage });
-            setReceiverPosition({ x: 75, y: newScrimmage });
-            setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
-            setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
-            setInitialPosition({ x: 50, y: newScrimmage });
             setRestTimer(0);
             setThrowProgress(0);
-            setRotation(0); // Reset rotation
           }
         } else {
           setThrowProgress(prev => prev + deltaTime);
@@ -450,30 +521,11 @@ const FootballField = () => {
         // Reset if out of bounds
         if (ballPosition.y > 100 || ballPosition.y < -10 || 
             ballPosition.x > 100 || ballPosition.x < 0) {
-          setIsThrown(false);
-          setIsCaught(false);
-          setCatchOffset({ x: 0, y: 0 });
-          setBallPosition({ x: 50, y: newScrimmage - 3 }); // Center ball
-          setQuarterbackPosition({ x: 50, y: newScrimmage });
-          setReceiverPosition({ x: 75, y: newScrimmage });
-          setCornerbackPosition({ x: 75, y: newScrimmage - 5 });
-          setLinebackerPosition({ x: 50, y: newScrimmage - 20 });
-          setRestTimer(0);
-          setThrowProgress(0);
-          setShowPassIncomplete(true);
-          setGameStarted(false);
-          setRotation(0); // Reset rotation
-          
-          // Start a timer to hide the incomplete message
-          setTimeout(() => {
-            setShowPassIncomplete(false);
-          }, 2000);
-
-          if (currentDown === 4) {
-            setIsGameOver(true);
-          } else {
-            setCurrentDown(prev => prev + 1);
-          }
+          resetPositions({ 
+            scrimmageY: newScrimmage,
+            shouldIncrementDown: true,
+            newState: GameState.PASS_INCOMPLETE
+          });
         }
       }
 
@@ -536,42 +588,12 @@ const FootballField = () => {
   }, [activeKeys, isThrown, isCaught, rotation, powerMeter, ballPosition, targetDistance, throwProgress, restTimer, initialPosition, throwDuration, gameStarted, receiverPosition, catchOffset, isTouchdown]);
 
   const resetGame = () => {
-    setGameStarted(false);
-    // Reset ball and QB to scrimmage line
-    setBallPosition({ x: 50, y: 80 - 3 }); // Ball 3 units above QB
-    setQuarterbackPosition({ x: 50, y: 80 });
-    // Reset receiver and defenders relative to scrimmage line
-    setReceiverPosition({ x: 75, y: 80 });
-    setCornerbackPosition({ x: 75, y: 75 });
-    setLinebackerPosition({ x: 50, y: 60 });
-    // Reset all game state
-    setRotation(0);
-    setPowerMeter(0);
-    setHasReachedMax(false);
-    setIsAdjusting(false);
-    setIsThrown(false);
-    setIsCaught(false);
-    setCatchOffset({ x: 0, y: 0 });
-    setRestTimer(0);
-    setThrowProgress(0);
-    setTargetDistance(0);
-    setInitialPosition({ x: 50, y: 80 });
-    setThrowDuration(0);
-    setIsTouchdown(false);
-    setActiveKeys(new Set());
-    setIsSacked(false);
-    setShowSacked(false);
-    setShowPassComplete(false);
-    setShowPassIncomplete(false);
-    setIsGameOver(false);
-    setScore(0);
-    setCurrentDown(1);
-    setNewScrimmage(80); // Reset to 20 yard line
-    setPlayDeadTimer(0);
-    setTouchdownTimer(0);
-    setIncompleteTimer(0);
-    setIsTackled(false);
-    setShowInstructions(false);
+    resetPositions({
+      scrimmageY: 80,
+      shouldResetScore: true,
+      isFullReset: true,
+      newState: GameState.READY
+    });
   };
 
   return (
@@ -619,40 +641,42 @@ const FootballField = () => {
       </div>
 
       <div className="start-message">
-        {isGameOver ? (
+        {gameState === GameState.GAME_OVER ? (
           <button className="play-again-button" onClick={resetGame}>
             Play Again?
           </button>
         ) : (
-          gameStarted ? 'Press Return to Reset' : (isTouchdown ? 'Press Return to Keep Playing' : 'Press Return to Hike Ball')
+          gameState === GameState.PLAYING ? 'Press Return to Reset' : 
+          gameState === GameState.TOUCHDOWN ? 'Press Return to Keep Playing' : 
+          'Press Return to Hike Ball'
         )}
       </div>
 
-      {isTouchdown && (
+      {gameState === GameState.TOUCHDOWN && (
         <div className="touchdown-message">
           TOUCHDOWN!
         </div>
       )}
 
-      {showPassComplete && !isTouchdown && (
+      {gameState === GameState.PASS_COMPLETE && (
         <div className="pass-complete-message">
           PASS COMPLETE
         </div>
       )}
 
-      {showPassIncomplete && !isTouchdown && !isGameOver && (
+      {gameState === GameState.PASS_INCOMPLETE && (
         <div className="pass-incomplete-message">
           PASS INCOMPLETE
         </div>
       )}
 
-      {showSacked && !isTouchdown && !isGameOver && (
+      {gameState === GameState.SACKED && (
         <div className="sacked-message">
           SACKED
         </div>
       )}
 
-      {isGameOver && (
+      {gameState === GameState.GAME_OVER && (
         <div className="game-over-container">
           <div className="game-over-message">
             GAME OVER
