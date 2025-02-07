@@ -53,14 +53,12 @@ const FootballField = () => {
   const POWER_GROWTH_SPEED = 1.7;
   const BALL_SPEED = 1;
   const REST_DURATION = 60;
-  const MOVEMENT_SPEED = 0.05;
+  const MOVEMENT_SPEED = 0.07;
   const RECEIVER_SPEED = 20;
   const PLAY_DEAD_DURATION = 60;
   const TOUCHDOWN_DURATION = 300; // 5 seconds at 60fps
-  const INCOMPLETE_DURATION = 180;
-  const SACKED_MESSAGE_DURATION = 120; // 2 seconds at 60fps
   const CORNERBACK_SPEED = 19;
-  const LINEBACKER_SPEED = 13;
+  const LINEBACKER_SPEED = 11;
   const SACK_DISTANCE = 5;
   const TACKLE_DISTANCE = 10;
 
@@ -116,11 +114,12 @@ const FootballField = () => {
       newState = GameState.READY
     } = options;
 
-    // Handle down progression
+    // Handle down progression first
+    let shouldTransitionToGameOver = false;
     if (shouldIncrementDown) {
       const nextDown = currentDown + 1;
       if (nextDown > 4) {
-        setGameState(GameState.GAME_OVER);
+        shouldTransitionToGameOver = true;
       } else {
         setCurrentDown(nextDown);
       }
@@ -158,9 +157,13 @@ const FootballField = () => {
         setIsTouchdown(false);
         setIsTackled(false);
 
-        // Wait another 1 second before clearing the message
+        // Wait another 1 second before transitioning state
         setTimeout(() => {
-          setGameState(GameState.READY);
+          if (shouldTransitionToGameOver) {
+            setGameState(GameState.GAME_OVER);
+          } else {
+            setGameState(GameState.READY);
+          }
         }, 1000);
       }, 1000);
       
@@ -199,6 +202,7 @@ const FootballField = () => {
     }
     if (shouldAddTouchdown) {
       setScore(prev => prev + 7);
+      setCurrentDown(1); // Reset downs after touchdown
     }
 
     // Handle full reset
@@ -210,63 +214,157 @@ const FootballField = () => {
     }
   };
 
+  const handlePlayOutcome = (outcome, scrimmageY) => {
+    // First show the outcome message
+    setGameState(outcome);
+    setGameStarted(false);
+    setIsThrown(false);
+    setActiveKeys(new Set()); // Clear any active keys immediately
+    
+    // Handle down increment
+    const nextDown = currentDown + 1;
+    
+    // Wait 1 second with current positions to show the outcome
+    setTimeout(() => {
+      // Reset positions
+      setBallPosition({ x: 50, y: scrimmageY - 3 });
+      setQuarterbackPosition({ x: 50, y: scrimmageY });
+      setReceiverPosition({ x: 75, y: scrimmageY });
+      setCornerbackPosition({ x: 75, y: scrimmageY - 5 });
+      setLinebackerPosition({ x: 50, y: scrimmageY - 20 });
+      setInitialPosition({ x: 50, y: scrimmageY });
+      
+      // Reset other game states
+      setRotation(0);
+      setPowerMeter(0);
+      setIsAdjusting(false);
+      setIsCaught(false);
+      setIsSacked(false);
+      setCatchOffset({ x: 0, y: 0 });
+      setRestTimer(0);
+      setThrowProgress(0);
+      setHasReachedMax(false);
+      setTargetDistance(0);
+      setThrowDuration(0);
+      setIsTouchdown(false);
+      setIsTackled(false);
+      setPlayDeadTimer(0);
+
+      // Only transition to game over on 4th down if it wasn't a touchdown
+      if (currentDown === 4 && outcome !== GameState.TOUCHDOWN) {
+        setGameState(GameState.GAME_OVER);
+      } else {
+        // Otherwise increment down and transition to READY
+        setCurrentDown(nextDown);
+        setGameState(GameState.READY);
+      }
+    }, 1000);
+  };
+
+  // Add an effect to monitor game state and only transition to READY when safe
+  useEffect(() => {
+    // If we're in an outcome state and all conditions are met, we can transition to READY
+    if ([GameState.PASS_COMPLETE, GameState.PASS_INCOMPLETE, GameState.SACKED].includes(gameState)) {
+      if (!isThrown && !isCaught && !isSacked && !isTackled && 
+          !isTouchdown && activeKeys.size === 0 && 
+          playDeadTimer === 0 && throwProgress === 0) {
+        // Only transition if we're not on 4th down
+        if (currentDown <= 4) {
+          setGameState(GameState.READY);
+        }
+      }
+    }
+  }, [isThrown, isCaught, isSacked, isTackled, isTouchdown, 
+      activeKeys, playDeadTimer, throwProgress, gameState, currentDown]);
+
+  // Add this new function to check if game is truly ready for next play
+  const isReadyForPlay = () => {
+    return gameState === GameState.READY && 
+           !gameStarted && 
+           !isThrown && 
+           !isCaught && 
+           !isSacked && 
+           !isTackled && 
+           !isTouchdown && 
+           activeKeys.size === 0 && 
+           playDeadTimer === 0 && 
+           throwProgress === 0;
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.repeat) return;
       
+      // Handle Escape key always
+      if (e.key === 'Escape') {
+        setShowInstructions(false);
+        return;
+      }
+
+      // Only process Return key in READY state or after TOUCHDOWN
       if (e.key === 'Enter') {
         if (gameState === GameState.TOUCHDOWN) {
+          // Reset to initial state after touchdown
           resetPositions({ 
             scrimmageY: 80,
-            shouldAddTouchdown: true,
-            isFullReset: true 
+            isFullReset: true,
+            newState: GameState.READY
           });
-        } else if (gameState === GameState.READY || 
-                   gameState === GameState.PASS_COMPLETE || 
-                   gameState === GameState.PASS_INCOMPLETE || 
-                   gameState === GameState.SACKED) {
+          setCurrentDown(1);
+          return;
+        }
+        if (gameState === GameState.READY) {
           setGameState(GameState.PLAYING);
           setGameStarted(true);
-        } else if (gameState === GameState.PLAYING) {
-          resetPositions({ 
-            scrimmageY: newScrimmage,
-            newState: GameState.READY 
-          });
+          setActiveKeys(new Set());
+          return;
         }
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        setActiveKeys(prev => new Set([...prev, 'space']));
-      } else if (['ArrowUp', 'ArrowDown'].includes(e.key) && activeKeys.has('space') && !isThrown) {
-        e.preventDefault();
-        setIsAdjusting(true);  // Start manual adjustments as soon as arrows are used
-        setPowerMeter(prev => {
-          if (e.key === 'ArrowUp') {
-            return Math.min(prev + 10, MAX_POWER);
-          } else {
-            return Math.max(prev - 10, 0);
-          }
-        });
-      } else if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault();
-        setActiveKeys(prev => new Set([...prev, e.key]));
-      } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
-        setActiveKeys(prev => new Set([...prev, e.key.toLowerCase()]));
+        // Ignore Return key in all other states
+        return;
+      }
+      
+      // Only allow gameplay keys in PLAYING state when game is fully started
+      if (gameState === GameState.PLAYING && gameStarted) {
+        if (e.key === ' ') {
+          e.preventDefault();
+          setActiveKeys(prev => new Set([...prev, 'space']));
+        } else if (['ArrowUp', 'ArrowDown'].includes(e.key) && activeKeys.has('space') && !isThrown) {
+          e.preventDefault();
+          setIsAdjusting(true);
+          setPowerMeter(prev => {
+            if (e.key === 'ArrowUp') {
+              return Math.min(prev + 10, MAX_POWER);
+            } else {
+              return Math.max(prev - 10, 0);
+            }
+          });
+        } else if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          setActiveKeys(prev => new Set([...prev, e.key]));
+        } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+          setActiveKeys(prev => new Set([...prev, e.key.toLowerCase()]));
+        }
       }
     };
 
     const handleKeyUp = (e) => {
       if (e.key === 'Escape') {
         setShowInstructions(false);
+        return;
+      }
+      
+      // Only process key ups in PLAYING state when game is fully started
+      if (gameState !== GameState.PLAYING || !gameStarted) {
+        return;
       }
       
       if (e.key === ' ') {
         if (activeKeys.has('space') && !isThrown) {
           const angle = rotation * (Math.PI / 180);
           const normalizedPower = powerMeter / MAX_POWER;
-          // First 70% of power = 0-40 yards, remaining 30% = 40-65 yards
           const distance = normalizedPower <= 0.7 
-            ? (normalizedPower * 1.43) * 40 // 0-40 yards
-            : 60 + ((normalizedPower - 0.7) * 1.67) * 25; // 40-65 yards
+            ? (normalizedPower * 1.43) * 40
+            : 60 + ((normalizedPower - 0.7) * 1.67) * 25;
           
           setIsThrown(true);
           setThrowProgress(0);
@@ -274,7 +372,6 @@ const FootballField = () => {
           setTargetDistance(distance);
           setHasReachedMax(false);
           setIsAdjusting(false);
-          // Calculate throw duration based on distance and constant speed
           setThrowDuration(distance / BALL_SPEED);
         }
         
@@ -287,7 +384,7 @@ const FootballField = () => {
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         setActiveKeys(prev => {
           const newKeys = new Set(prev);
-          newKeys.delete(e.key);  // Don't lowercase arrow keys
+          newKeys.delete(e.key);
           return newKeys;
         });
       } else if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
@@ -305,6 +402,22 @@ const FootballField = () => {
     const updateGame = (currentTime) => {
       const deltaTime = (currentTime - lastTime) / 16.67;
       lastTime = currentTime;
+
+      // Only allow game updates in PLAYING state
+      if (gameState !== GameState.PLAYING) {
+        // Still allow touchdown timer to run
+        if (isTouchdown) {
+          setTouchdownTimer(prev => prev + 1);
+          if (touchdownTimer >= TOUCHDOWN_DURATION) {
+            resetPositions({ 
+              scrimmageY: 80,
+              shouldAddTouchdown: true,
+              isFullReset: true 
+            });
+          }
+        }
+        return;
+      }
 
       // Update receiver position if game started
       if (gameStarted && receiverPosition.y > -10 && !isTackled) {
@@ -335,11 +448,7 @@ const FootballField = () => {
             setIsTackled(true);
             const newScrimmageLine = receiverPosition.y;
             setNewScrimmage(newScrimmageLine);
-            resetPositions({ 
-              scrimmageY: newScrimmageLine,
-              shouldIncrementDown: true,
-              newState: GameState.PASS_COMPLETE
-            });
+            handlePlayOutcome(GameState.PASS_COMPLETE, newScrimmageLine);
           }
         }
       }
@@ -354,26 +463,8 @@ const FootballField = () => {
           if (distance < SACK_DISTANCE) {
             const newScrimmageLine = Math.min(100, ballPosition.y + 5);
             setNewScrimmage(newScrimmageLine);
-            const nextDown = currentDown + 1;
-            if (nextDown > 4) {
-              resetPositions({ 
-                scrimmageY: newScrimmageLine,
-                newState: GameState.GAME_OVER
-              });
-            } else {
-              setCurrentDown(nextDown);
-              resetPositions({ 
-                scrimmageY: newScrimmageLine,
-                newState: GameState.SACKED
-              });
-              
-              // Hide sacked message after 2 seconds
-              setTimeout(() => {
-                if (gameState === GameState.SACKED) {
-                  setGameState(GameState.READY);
-                }
-              }, 2000);
-            }
+            setIsSacked(true);
+            handlePlayOutcome(GameState.SACKED, newScrimmageLine);
             return prev;
           }
 
@@ -407,13 +498,7 @@ const FootballField = () => {
           setShowPassIncomplete(false);
           setInitialPosition({ x: 50, y: newScrimmage }); // Center initial position
           if (!isTouchdown) {
-            const nextDown = currentDown + 1;
-            if (nextDown > 4) {
-              setIsGameOver(true);
-              setGameStarted(false);
-            } else {
-              setCurrentDown(nextDown);
-            }
+            setGameStarted(false);
           }
           setIsTackled(false);
           setGameStarted(false);
@@ -470,16 +555,16 @@ const FootballField = () => {
         // Check for touchdown when the ball's center crosses the goal line
         if (newBallPosition.y <= 0 && gameState !== GameState.TOUCHDOWN) {
           setGameState(GameState.TOUCHDOWN);
+          setGameStarted(false);
+          setScore(prev => prev + 7); // Add points immediately
+          setActiveKeys(new Set()); // Clear any active keys
+          return;
         }
       } else if (isThrown) {
         if (throwProgress >= throwDuration) {
           // If ball wasn't caught by end of throw, it's incomplete
           if (!isCaught) {
-            resetPositions({ 
-              scrimmageY: newScrimmage,
-              shouldIncrementDown: true,
-              newState: GameState.PASS_INCOMPLETE
-            });
+            handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
             return;
           }
           
@@ -521,11 +606,8 @@ const FootballField = () => {
         // Reset if out of bounds
         if (ballPosition.y > 100 || ballPosition.y < -10 || 
             ballPosition.x > 100 || ballPosition.x < 0) {
-          resetPositions({ 
-            scrimmageY: newScrimmage,
-            shouldIncrementDown: true,
-            newState: GameState.PASS_INCOMPLETE
-          });
+          handlePlayOutcome(GameState.PASS_INCOMPLETE, newScrimmage);
+          return;
         }
       }
 
@@ -646,9 +728,9 @@ const FootballField = () => {
             Play Again?
           </button>
         ) : (
-          gameState === GameState.PLAYING ? 'Press Return to Reset' : 
           gameState === GameState.TOUCHDOWN ? 'Press Return to Keep Playing' : 
-          'Press Return to Hike Ball'
+          gameState === GameState.READY ? 'Press Return to Hike Ball' :
+          ''
         )}
       </div>
 
