@@ -12,27 +12,44 @@ const GameState = {
 };
 
 const FootballField = () => {
+  // Field constants
+  const FIELD_LEFT = 5;     // 5% from left (sideline)
+  const FIELD_RIGHT = 95;   // 95% from right (sideline)
+  const ENDZONE_TOP = 10;    // Top endzone is 0-10%
+  const ENDZONE_BOTTOM = 90; // Bottom endzone is 90-100%
+
+  // Helper function to convert yard line to y-position percentage
+  const getYardLinePosition = (yardLine, fromSouth = true) => {
+    // Field is 80 units (10-90), representing 100 yards
+    // Each yard is 0.8 units
+    const yardsFromEndzone = fromSouth ? yardLine : 100 - yardLine;
+    return ENDZONE_BOTTOM - (yardsFromEndzone * 0.8);
+  };
+
+  // Calculate south 20 yard line position
+  const SOUTH_20 = getYardLinePosition(20, true);
+
   const [rotation, setRotation] = useState(0);
   const [activeKeys, setActiveKeys] = useState(new Set());
   const [powerMeter, setPowerMeter] = useState(0);
   const [hasReachedMax, setHasReachedMax] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
-  const [ballPosition, setBallPosition] = useState({ x: 50, y: 70 });
+  const [ballPosition, setBallPosition] = useState({ x: 50, y: SOUTH_20 });
   const [ballVelocity, setBallVelocity] = useState({ x: 0, y: 0 });
   const [isThrown, setIsThrown] = useState(false);
   const [isCaught, setIsCaught] = useState(false);
   const [catchOffset, setCatchOffset] = useState({ x: 0, y: 0 });
   const [restTimer, setRestTimer] = useState(0);
   const [targetDistance, setTargetDistance] = useState(0);
-  const [initialPosition, setInitialPosition] = useState({ x: 50, y: 70 });
+  const [initialPosition, setInitialPosition] = useState({ x: 50, y: SOUTH_20 });
   const [throwProgress, setThrowProgress] = useState(0);
   const [throwDuration, setThrowDuration] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
-  const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: 70 });
+  const [receiverPosition, setReceiverPosition] = useState({ x: 75, y: SOUTH_20 });
   const [isTouchdown, setIsTouchdown] = useState(false);
-  const [cornerbackPosition, setCornerbackPosition] = useState({ x: 75, y: 65 });
-  const [linebackerPosition, setLinebackerPosition] = useState({ x: 50, y: 50 });
-  const [quarterbackPosition, setQuarterbackPosition] = useState({ x: 50, y: 70 });
+  const [cornerbackPosition, setCornerbackPosition] = useState({ x: 75, y: SOUTH_20 - 5 });
+  const [linebackerPosition, setLinebackerPosition] = useState({ x: 50, y: SOUTH_20 - 20 });
+  const [quarterbackPosition, setQuarterbackPosition] = useState({ x: 50, y: SOUTH_20 });
   const [isSacked, setIsSacked] = useState(false);
   const [showSacked, setShowSacked] = useState(false);
   const [showPassComplete, setShowPassComplete] = useState(false);
@@ -66,10 +83,6 @@ const FootballField = () => {
   const SACK_DISTANCE = 5;
   const SACK_DISTANCE_SHORT_FIELD = 1;
   const TACKLE_DISTANCE = 10;
-  const FIELD_LEFT = 5;     // 5% from left (sideline)
-  const FIELD_RIGHT = 95;   // 95% from right (sideline)
-  const ENDZONE_TOP = 10;    // Top endzone is 0-10%
-  const ENDZONE_BOTTOM = 90; // Bottom endzone is 90-100%
 
   // Check if ball and receiver intersect
   const checkCatch = (ballPos, receiverPos) => {
@@ -334,12 +347,12 @@ const FootballField = () => {
   // Update the resetGame function to handle both game over and touchdown resets
   const resetGame = (afterTouchdown = false) => {
     // Reset all positions and game state to south 20 yard line
-    setBallPosition({ x: 50, y: 70 });
-    setQuarterbackPosition({ x: 50, y: 70 });
-    setReceiverPosition({ x: 75, y: 70 });
-    setCornerbackPosition({ x: 75, y: 65 });
-    setLinebackerPosition({ x: 50, y: 50 });
-    setInitialPosition({ x: 50, y: 70 });
+    setBallPosition({ x: 50, y: SOUTH_20 });
+    setQuarterbackPosition({ x: 50, y: SOUTH_20 });
+    setReceiverPosition({ x: 75, y: SOUTH_20 });
+    setCornerbackPosition({ x: 75, y: SOUTH_20 - 5 });
+    setLinebackerPosition({ x: 50, y: SOUTH_20 - 20 });
+    setInitialPosition({ x: 50, y: SOUTH_20 });
     setRotation(0);
     setPowerMeter(0);
     setHasReachedMax(false);
