@@ -70,17 +70,19 @@ body {
   font-weight: 900;
   letter-spacing: 2px;
   text-transform: uppercase;
-  z-index: 3;
-  -webkit-text-stroke: 2px white;
-  text-stroke: 2px white;
+  z-index: 1;
 }
 
-.team-name.lancers {
-  color: #0066cc; /* Blue */
+.team-name.chiefs {
+  color: #E31837; /* Chiefs Red */
+  -webkit-text-stroke: 2px #FFB81C; /* Chiefs Gold */
+  text-stroke: 2px #FFB81C;
 }
 
-.team-name.wildcats {
-  color: #cc0000; /* Red */
+.team-name.eagles {
+  color: #004C54; /* Eagles Midnight Green */
+  -webkit-text-stroke: 2px #A5ACAF; /* Eagles Silver */
+  text-stroke: 2px #A5ACAF;
 }
 
 .end-zone.south {
@@ -529,10 +531,62 @@ body {
 
 /* Team names */
 .team-name {
-  z-index: 3;
+  z-index: 1;
 }
 
 /* Remove any isolation properties that might create new stacking contexts */
 .main-field, .end-zone {
   isolation: unset;
+}
+
+.super-bowl-logo {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 100px;
+  height: auto;
+  z-index: 100;
+}
+
+.midfield-logo {
+  position: absolute;
+  left: 25%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: 90px;
+  height: auto;
+  z-index: 2;
+  opacity: 1;
+}
+
+.nfl-field-logo {
+  position: absolute;
+  left: 25%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: 45px;
+  height: auto;
+  z-index: 2;
+  opacity: 1;
+}
+
+.nfl-field-logo.north-25 {
+  top: 25%;
+}
+
+.nfl-field-logo.south-25 {
+  top: 75%;
+}
+
+.game-title {
+  position: fixed;
+  left: 50%;
+  top: 20px;
+  transform: translateX(-50%);
+  color: white;
+  font-family: 'Courier New', monospace;
+  font-size: 32px;
+  font-weight: bold;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 100;
 } 

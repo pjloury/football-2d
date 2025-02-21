@@ -1,11 +1,11 @@
 .App {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
   text-align: center;
-  min-height: 100vh;
-  background-color: #1a1a1a;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .App-logo {
@@ -41,4 +41,25 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.team {
+  padding: 2rem;
+  border-radius: 8px;
+}
+
+.chiefs {
+  background-color: #E31837; /* Chiefs Red */
+  color: #FFB81C; /* Chiefs Gold */
+}
+
+.eagles {
+  background-color: #004C54; /* Eagles Midnight Green */
+  color: #A5ACAF; /* Eagles Silver */
+}
+
+.team h1 {
+  font-size: 3rem;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
