@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './FootballField.css';
+import sbLogo from '../sb_lix.svg';
 
 const GameState = {
   READY: 'READY',           // Ready to hike
@@ -722,6 +723,27 @@ const FootballField = () => {
 
   return (
     <div className="football-field">
+      <div className="game-title">Football 2D 🏈</div>
+      <img 
+        src={sbLogo} 
+        alt="Super Bowl LIX" 
+        className="super-bowl-logo"
+      />
+      <img 
+        src={sbLogo} 
+        alt="Super Bowl LIX Midfield" 
+        className="midfield-logo"
+      />
+      <img 
+        src={`${process.env.PUBLIC_URL}/nfl.svg`}
+        alt="NFL Logo North 25" 
+        className="nfl-field-logo north-25"
+      />
+      <img 
+        src={`${process.env.PUBLIC_URL}/nfl.svg`}
+        alt="NFL Logo South 25" 
+        className="nfl-field-logo south-25"
+      />
       <button 
         className="instructions-button"
         onClick={() => setShowInstructions(true)}
@@ -732,7 +754,7 @@ const FootballField = () => {
       {/* Field Background Layer */}
       <div className="field-background">
         <div className="end-zone north">
-          <div className="team-name lancers">LANCERS</div>
+          <div className="team-name chiefs">CHIEFS</div>
           <div className="goal-post north"></div>
           <div className="pylon left"></div>
           <div className="pylon right"></div>
@@ -754,7 +776,7 @@ const FootballField = () => {
           <div className="sideline right"></div>
         </div>
         <div className="end-zone south">
-          <div className="team-name wildcats">WILDCATS</div>
+          <div className="team-name eagles">EAGLES</div>
           <div className="goal-post south"></div>
           <div className="pylon left"></div>
           <div className="pylon right"></div>
